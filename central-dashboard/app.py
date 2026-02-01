@@ -138,49 +138,65 @@ def stop_recording_all():
     return jsonify({"success": True})
 
 if __name__ == '__main__':
-    init_db()
-    
-    # --- System Tray & GUI Setup ---
-    from pystray import Icon as TrayIcon, Menu as TrayMenu, MenuItem as TrayMenuItem
-    from PIL import Image
-    import webbrowser
+    try:
+        logging.info("Initializing Database...")
+        init_db()
+        
+        # --- System Tray & GUI Setup ---
+        logging.info("Importing System Tray Libraries...")
+        from pystray import Icon as TrayIcon, Menu as TrayMenu, MenuItem as TrayMenuItem
+        from PIL import Image
+        import webbrowser
 
-    def open_dashboard(icon, item):
+        def open_dashboard(icon, item):
+            logging.info("Opening Dashboard in Browser...")
+            webbrowser.open('http://127.0.0.1:5000')
+
+        def quit_app(icon, item):
+            logging.info("Quitting Application...")
+            icon.stop()
+            os._exit(0)
+
+        # Load Logo
+        logo_path = resource_path('logo.png')
+        logging.info(f"Loading Logo from: {logo_path}")
+        if not os.path.exists(logo_path):
+            logging.warning("Logo file NOT found. Using fallback red box.")
+            image = Image.new('RGB', (64, 64), color = (255, 0, 0))
+        else:
+            logging.info("Logo file found.")
+            image = Image.open(logo_path)
+
+        # Define Menu
+        menu = TrayMenu(
+            TrayMenuItem("VoltWise Dashboard", None, enabled=False),
+            TrayMenuItem("Open Dashboard", open_dashboard, default=True),
+            TrayMenuItem("Quit", quit_app)
+        )
+
+        # Create Icon
+        logging.info("Creating Tray Icon...")
+        icon = TrayIcon("VoltWise", image, "VoltWise Central", menu)
+
+        # Run Flask in Background Thread
+        def run_server():
+            logging.info("Starting Flask Server on Port 5000...")
+            # Disable reloader because it doesn't work well with threads/PyInstaller
+            app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+
+        server_thread = threading.Thread(target=run_server, daemon=True)
+        server_thread.start()
+
+        # Open Browser on Launch
+        logging.info("Launching Browser...")
         webbrowser.open('http://127.0.0.1:5000')
 
-    def quit_app(icon, item):
-        icon.stop()
-        os._exit(0)
+        # Run Tray Icon (Block Main Thread)
+        logging.info("Running System Tray Loop...")
+        icon.run()
+        logging.info("System Tray Loop Ended. Exiting.")
+        
+    except Exception as e:
+        logging.error(f"CRITICAL ERROR MAIN: {e}", exc_info=True)
 
-    # Load Logo
-    logo_path = resource_path('logo.png')
-    if not os.path.exists(logo_path):
-        # Fallback if logo missing
-        image = Image.new('RGB', (64, 64), color = (255, 0, 0))
-    else:
-        image = Image.open(logo_path)
-
-    # Define Menu
-    menu = TrayMenu(
-        TrayMenuItem("VoltWise Dashboard", None, enabled=False),
-        TrayMenuItem("Open Dashboard", open_dashboard, default=True),
-        TrayMenuItem("Quit", quit_app)
-    )
-
-    # Create Icon
-    icon = TrayIcon("VoltWise", image, "VoltWise Central", menu)
-
-    # Run Flask in Background Thread
-    def run_server():
-        # Disable reloader because it doesn't work well with threads/PyInstaller
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
-
-    server_thread = threading.Thread(target=run_server, daemon=True)
-    server_thread.start()
-
-    # Open Browser on Launch
-    webbrowser.open('http://127.0.0.1:5000')
-
-    # Run Tray Icon (Block Main Thread)
-    icon.run()
 
