@@ -237,4 +237,4 @@ if __name__ == '__main__':
         poller_thread = threading.Thread(target=background_poller, daemon=True)
         poller_thread.start()
         
-    app.run(host='0.0.0.0', port=5001, debug=app.debug)
+    app.run(host='0.0.0.0', port=25500, debug=app.debug)

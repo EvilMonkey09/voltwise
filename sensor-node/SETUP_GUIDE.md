@@ -120,7 +120,7 @@ During installation, the script will ask:
     ```
 2.  **Open Dashboard**:
     On your computer/phone connected to the same Wi-Fi, open:
-    `http://raspberrypi.local:5001` (or your Pi's IP address: `http://192.168.1.X:5001`)
+    `http://raspberrypi.local:25500` (or your Pi's IP address: `http://192.168.1.X:25500`)
 
 You should now see the Real-Time Dashboard showing Voltage, Current, and Power!
 

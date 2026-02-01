@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoltWise Central</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --bg: #ecf0f1;
+            --card-bg: #ffffff;
+            --text: #34495e;
+            --success: #27ae60;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        h1 { margin: 0; }
+        .controls button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-left: 10px;
+        }
+        .controls button.record {
+            background-color: #e74c3c;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .card h3 { margin-top: 0; }
+        .card .status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #bdc3c7;
+        }
+        .card .status.online { background-color: var(--success); }
+        .iframe-container {
+            width: 100%;
+            height: 400px; /* Reduced specific view */
+            border: none;
+            margin-top: 10px;
+            display: none;
+        }
+        .card.expanded {
+            grid-column: 1 / -1;
+        }
+        .card.expanded .iframe-container {
+            display: block;
+            height: 600px;
+        }
+        
+    </style>
+</head>
+<body>
+    <header>
+        <h1>VoltWise Central</h1>
+        <div class="controls">
+            <button onclick="discoverNodes()">Scan Network</button>
+            <button class="record" onclick="toggleRecording()">Start Recording All</button>
+        </div>
+    </header>
+
+    <div id="loading" style="display:none; text-align:center;">Scanning...</div>
+
+    <div id="grid" class="grid">
+        <!-- Cards injected here -->
+    </div>
+
+    <script>
+        let isRecording = false;
+
+        async function loadNodes() {
+            const res = await fetch('/api/nodes');
+            const nodes = await res.json();
+            renderGrid(nodes);
+        }
+
+        async function discoverNodes() {
+            document.getElementById('loading').style.display = 'block';
+            const res = await fetch('/api/discover', { method: 'POST' });
+            const data = await res.json();
+            document.getElementById('loading').style.display = 'none';
+            alert(`Found ${data.count} nodes!`);
+            loadNodes();
+        }
+
+        async function toggleRecording() {
+            if (!isRecording) {
+                const name = prompt("Enter Event Name for all nodes:", "Central Event");
+                if (!name) return;
+                
+                await fetch('/api/recording/start_all', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: name})
+                });
+                isRecording = true;
+                document.querySelector('.record').innerText = "Stop Recording All";
+                document.querySelector('.record').style.backgroundColor = "#333";
+            } else {
+                await fetch('/api/recording/stop_all', { method: 'POST' });
+                isRecording = false;
+                document.querySelector('.record').innerText = "Start Recording All";
+                document.querySelector('.record').style.backgroundColor = "#e74c3c";
+            }
+        }
+
+        function renderGrid(nodes) {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            
+            nodes.forEach(node => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <h3>${node.hostname || node.ip}</h3>
+                    <div class="status ${node.status}"></div>
+                    <p>IP: ${node.ip}</p>
+                    <button onclick="toggleView(this, '${node.ip}')">View Details</button>
+                    <div class="iframe-container"></div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function toggleView(btn, ip) {
+            const card = btn.closest('.card');
+            const container = card.querySelector('.iframe-container');
+            const isExpanded = card.classList.toggle('expanded');
+            
+            if (isExpanded) {
+                btn.innerText = "Close Details";
+                // Load iframe directly from node address
+                // Note: Mixed content issues might block this if dashboard is HTTPS and node is HTTP.
+                // Assuming local network is HTTP safe for now.
+                container.innerHTML = `<iframe src="http://${ip}:25500" width="100%" height="100%" frameborder="0"></iframe>`;
+            } else {
+                btn.innerText = "View Details";
+                container.innerHTML = '';
+            }
+        }
+
+        // Initial load
+        loadNodes();
+    </script>
+</body>
+</html>

@@ -9,8 +9,7 @@ This repository is divided into two parts:
 The software that runs on the Raspberry Pi.
 
 - Connects to PZEM-004T sensors.
-- Provides a local web dashboard.
-- Auto-discovery and easy setup.
+- Provides a localThe web dashboard will be available at `http://<pi-ip>:25500`.
 
 **[>> Go to Sensor Node Documentation](./sensor-node/SETUP_GUIDE.md)**
 

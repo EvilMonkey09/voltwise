@@ -1,0 +1,46 @@
+name: Build VoltWise Central
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Install Dependencies
+        run: |
+          cd central-dashboard
+          pip install -r requirements.txt
+
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd central-dashboard
+          pyinstaller --name "VoltWise-Windows" --add-data "templates;templates" --add-data "static;static" --windowed --onefile app.py
+
+      - name: Build with PyInstaller (Mac/Linux)
+        if: runner.os != 'Windows'
+        run: |
+          cd central-dashboard
+          pyinstaller --name "VoltWise-${{ runner.os }}" --add-data "templates:templates" --add-data "static:static" --windowed --onefile app.py
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoltWise-${{ runner.os }}
+          path: central-dashboard/dist/*
