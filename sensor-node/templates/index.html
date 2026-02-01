@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VoltWise</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>VoltWise</h1>
+        <div id="connection-status" class="status-indicator">Connecting...</div>
+      </header>
+
+      <!-- Live Data Section (Current Values) -->
+      <section class="live-data">
+        <h2>Live Status</h2>
+        <div class="dashboard-grid">
+            {% for address in sensors %}
+            <div class="card phase-card" id="card-{{ address }}">
+              <div class="card-header">
+                <h3>Phase {{ loop.index }}</h3>
+                <button
+                  class="btn-icon reset-btn"
+                  data-address="{{ address }}"
+                  title="Reset Energy"
+                >
+                  ↺
+                </button>
+              </div>
+              <div class="card-body">
+                <div class="metric">
+                  <span class="label">Voltage</span>
+                  <span class="value" id="voltage-{{ address }}">--</span>
+                  <span class="unit">V</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Current</span>
+                  <span class="value" id="current-{{ address }}">--</span>
+                  <span class="unit">A</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Power</span>
+                  <span class="value" id="power-{{ address }}">--</span>
+                  <span class="unit">W</span>
+                </div>
+                <div class="metric">
+                  <span class="label">Energy</span>
+                  <span class="value" id="energy-{{ address }}">--</span>
+                  <span class="unit">Wh</span>
+                </div>
+                <div class="metric-row">
+                  <div class="small-metric">
+                    <span class="label">Hz</span>
+                    <span class="value" id="frequency-{{ address }}">--</span>
+                  </div>
+                  <div class="small-metric">
+                    <span class="label">PF</span>
+                    <span class="value" id="pf-{{ address }}">--</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+    
+            <!-- Summary Card (Only if 3 phases) -->
+            {% if sensors|length == 3 %}
+            <div class="card summary-card">
+              <div class="card-header">
+                <h3>Total / Neutral</h3>
+              </div>
+              <div class="card-body">
+                <div class="metric">
+                  <span class="label">Total Power</span>
+                  <span class="value" id="total-power">--</span>
+                  <span class="unit">W</span>
+                </div>
+                <div class="metric highlight">
+                  <span class="label">Neutral Current</span>
+                  <span class="value" id="neutral-current">--</span>
+                  <span class="unit">A</span>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+        </div>
+      </section>
+
+      <!-- Live Charts Section -->
+      <section class="live-charts">
+        <h2>Live History</h2>
+        <div class="dashboard-grid charts-grid">
+            <div class="card chart-card">
+                <h3>Voltage</h3>
+                <canvas id="chart-live-voltage"></canvas>
+            </div>
+            <div class="card chart-card">
+                <h3>Current</h3>
+                <canvas id="chart-live-current"></canvas>
+            </div>
+            <div class="card chart-card">
+                <h3>Power</h3>
+                <canvas id="chart-live-power"></canvas>
+            </div>
+        </div>
+      </section>
+ 
+      <!-- Event Management Section -->
+      <section class="history-section">
+        <div class="section-header">
+            <h2>Event Management</h2>
+            <button id="btn-create-event" class="btn primary">+ Create New Event</button>
+        </div>
+        
+        <div class="table-responsive">
+          <table id="events-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Start Time</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- Create Event Modal (Simple Prompt for now, or handled in JS) -->
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+  </body>
+</html>

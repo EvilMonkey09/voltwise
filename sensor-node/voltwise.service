@@ -1,0 +1,16 @@
+[Unit]
+Description=VoltWise Service
+After=network.target
+
+[Service]
+# User und Group anpassen, falls nicht 'pi'
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/power-watchdog
+Environment="PATH=/home/pi/power-watchdog/venv/bin"
+ExecStart=/home/pi/power-watchdog/venv/bin/python3 app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

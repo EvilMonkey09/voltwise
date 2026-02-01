@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Event Details - VoltWise</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
+  </head>
+  <body>
+    <div class="container container-fluid"> <!-- Fluid for wider charts -->
+      <header>
+        <a href="/" class="btn secondary">← Back to Dashboard</a>
+        <h1 id="event-name-header">Event Details</h1>
+        <div class="status-indicator" id="event-status-indicator"></div>
+      </header>
+
+      <!-- Recording Controls -->
+      <section class="card control-card">
+        <div class="card-body flex-row">
+            <div>
+                <h2 id="event-name">Loading...</h2>
+                <div class="metric-row small-gap">
+                    <span class="label">Start:</span> <span id="event-start">--</span>
+                    <span class="sep">|</span>
+                    <span class="label">Duration:</span> <span id="event-duration">--</span>
+                    <span class="sep">|</span>
+                    <span class="label">Data Points:</span> <span id="event-points">--</span>
+                </div>
+            </div>
+            <div class="actions">
+                <button id="btn-start-recording" class="btn primary hidden">Start Recording</button>
+                <button id="btn-stop-recording" class="btn danger hidden">Stop Recording</button>
+                <a id="btn-download-csv" href="#" class="btn secondary">Download CSV</a>
+            </div>
+        </div>
+      </section>
+
+      <!-- Chart Controls -->
+      <section class="card control-card" style="margin-bottom: 20px;">
+        <div class="card-body flex-row">
+            <div class="filter-group">
+                <h3>Chart Controls</h3>
+                <div class="event-input-group">
+                    <label>Points to Show: <input type="number" id="chart-limit" value="0" placeholder="0 = All" style="width: 80px;"></label>
+                </div>
+                <!-- Manual Y-Axis Control -->
+                 <div class="event-input-group">
+                    <label>Y-Max Voltage: <input type="number" id="ymax-voltage" placeholder="Auto" style="width: 80px;"></label>
+                    <label>Y-Max Current: <input type="number" id="ymax-current" placeholder="Auto" style="width: 80px;"></label>
+                    <label>Y-Max Power: <input type="number" id="ymax-power" placeholder="Auto" style="width: 80px;"></label>
+                    <button id="btn-update-charts" class="btn secondary small">Apply</button>
+                </div>
+            </div>
+        </div>
+      </section>
+
+      <!-- Live Data (Only visible if active or desired) -->
+      <!-- We can insert a condensed live view here or rely on charts -->
+      
+      <!-- Charts -->
+      <main class="charts-grid-large">
+        <div class="card chart-card large">
+            <h3>Voltage (V)</h3>
+            <div class="chart-container">
+                <canvas id="chart-voltage"></canvas>
+            </div>
+        </div>
+        <div class="card chart-card large">
+            <h3>Current (A)</h3>
+            <div class="chart-container">
+                <canvas id="chart-current"></canvas>
+            </div>
+        </div>
+        <div class="card chart-card large">
+            <h3>Power (W)</h3>
+            <div class="chart-container">
+                <canvas id="chart-power"></canvas>
+            </div>
+        </div>
+      </main>
+
+    </div>
+
+    <!-- Pass Event ID to JS -->
+    <script>
+        const EVENT_ID = "{{ event_id }}";
+    </script>
+    <script src="{{ url_for('static', filename='js/event_charts.js') }}"></script>
+  </body>
+</html>
