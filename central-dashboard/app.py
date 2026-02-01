@@ -168,7 +168,7 @@ if __name__ == '__main__':
 
         def open_dashboard(icon, item):
             logging.info("Opening Dashboard in Browser...")
-            webbrowser.open('http://127.0.0.1:8080')
+            webbrowser.open('http://127.0.0.1:25555')
 
         def quit_app(icon, item):
             logging.info("Quitting Application...")
@@ -198,16 +198,16 @@ if __name__ == '__main__':
 
         # Run Flask in Background Thread
         def run_server():
-            logging.info("Starting Flask Server on Port 8080...")
+            logging.info("Starting Flask Server on Port 25555...")
             # Disable reloader because it doesn't work well with threads/PyInstaller
-            app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
+            app.run(host='0.0.0.0', port=25555, debug=False, use_reloader=False)
 
         server_thread = threading.Thread(target=run_server, daemon=True)
         server_thread.start()
 
         # Open Browser on Launch
         logging.info("Launching Browser...")
-        webbrowser.open('http://127.0.0.1:8080')
+        webbrowser.open('http://127.0.0.1:25555')
 
         # Run Tray Icon (Block Main Thread)
         logging.info("Running System Tray Loop...")
