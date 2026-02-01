@@ -28,7 +28,7 @@ If you are setting up a sensor:
 
 1.  Clone this repository:
     ```bash
-    git clone https://github.com/yourusername/voltwise.git
+    git clone https://github.com/EvilMonkey09/voltwise.git
     ```
 2.  Enter the sensor directory:
     ```bash

@@ -75,7 +75,7 @@ Running in the terminal on your Raspberry Pi:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/voltwise.git
+git clone https://github.com/EvilMonkey09/voltwise.git
 
 # Enter the SENSOR NODE directory
 cd voltwise/sensor-node
@@ -129,7 +129,7 @@ You should now see the Real-Time Dashboard showing Voltage, Current, and Power!
 ## Troubleshooting
 
 - **Dashboard not loading?**
-  Check if service is running: `sudo systemctl status power-watchdog`
+  Check if service is running: `sudo systemctl status voltwise`
 - **Readings are 0?**
   Check your soldering/wiring. Ensure RX goes to TX and TX goes to RX.
 - **Can't find sensors?**
