@@ -139,5 +139,48 @@ def stop_recording_all():
 
 if __name__ == '__main__':
     init_db()
-    # Run on a different port for the dashboard, e.g., 8080 or 5000
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    
+    # --- System Tray & GUI Setup ---
+    from pystray import Icon as TrayIcon, Menu as TrayMenu, MenuItem as TrayMenuItem
+    from PIL import Image
+    import webbrowser
+
+    def open_dashboard(icon, item):
+        webbrowser.open('http://127.0.0.1:5000')
+
+    def quit_app(icon, item):
+        icon.stop()
+        os._exit(0)
+
+    # Load Logo
+    logo_path = resource_path('logo.png')
+    if not os.path.exists(logo_path):
+        # Fallback if logo missing
+        image = Image.new('RGB', (64, 64), color = (255, 0, 0))
+    else:
+        image = Image.open(logo_path)
+
+    # Define Menu
+    menu = TrayMenu(
+        TrayMenuItem("VoltWise Dashboard", None, enabled=False),
+        TrayMenuItem("Open Dashboard", open_dashboard, default=True),
+        TrayMenuItem("Quit", quit_app)
+    )
+
+    # Create Icon
+    icon = TrayIcon("VoltWise", image, "VoltWise Central", menu)
+
+    # Run Flask in Background Thread
+    def run_server():
+        # Disable reloader because it doesn't work well with threads/PyInstaller
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+
+    # Open Browser on Launch
+    webbrowser.open('http://127.0.0.1:5000')
+
+    # Run Tray Icon (Block Main Thread)
+    icon.run()
+

@@ -28,27 +28,30 @@ jobs:
         run: |
           cd central-dashboard
           pip install -r requirements.txt
+          cd ..
+          pip install Pillow
+          python generate_icons.py
 
       # --- Windows Build ---
       - name: Build Windows
         if: runner.os == 'Windows'
         run: |
           cd central-dashboard
-          pyinstaller --name "VoltWise-Windows" --add-data "templates;templates" --add-data "static;static" --windowed --onefile app.py
+          pyinstaller --name "VoltWise-Windows" --add-data "templates;templates" --add-data "static;static" --add-data "logo.png;." --icon "icon.ico" --windowed --onefile app.py
 
       # --- Linux Build ---
       - name: Build Linux
         if: runner.os == 'Linux'
         run: |
           cd central-dashboard
-          pyinstaller --name "VoltWise-Linux" --add-data "templates:templates" --add-data "static:static" --windowed --onefile app.py
+          pyinstaller --name "VoltWise-Linux" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --windowed --onefile app.py
 
       # --- Mac Build & DMG ---
       - name: Build Mac
         if: runner.os == 'macOS'
         run: |
           cd central-dashboard
-          pyinstaller --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --windowed --noconsole app.py
+          pyinstaller --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --icon "icon.icns" --windowed --noconsole app.py
           brew install create-dmg
           # Cleanup old dmg if exists
           rm -f dist/VoltWise.dmg || true

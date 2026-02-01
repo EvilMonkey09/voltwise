@@ -20,6 +20,7 @@ The software that runs on the Raspberry Pi.
 - runs on PC/Mac/Linux.
 - Aggregates data from multiple Pis.
 - **[Download App](https://github.com/EvilMonkey09/voltwise/releases/latest)**
+- _Note for Mac Users: If you see a security warning, please Right-Click -> Open._
 
 ---
 
