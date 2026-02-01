@@ -11,6 +11,6 @@ fi
 
 echo "Starting Dashboard..."
 # Open browser after a slight delay
-(sleep 2 && open http://127.0.0.1:5000) &
+# Browser launch handled by app.py
 
 ./venv/bin/python3 app.py

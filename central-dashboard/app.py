@@ -8,26 +8,49 @@ import logging
 
 import sys
 import os
+import socket
+import platform
 
-# --- Debug Logging Setup ---
-# Write logs to Desktop to help debug startup issues
+def get_data_dir():
+    """Resolve OS-specific user data directory."""
+    app_name = "VoltWise"
+    system = platform.system()
+    
+    if system == "Windows":
+        base_path = os.environ.get("APPDATA", os.path.expanduser("~\\AppData\\Roaming"))
+    elif system == "Darwin":
+        base_path = os.path.expanduser("~/Library/Application Support")
+    else: # Linux/Unices
+        base_path = os.path.expanduser("~/.local/share")
+        
+    data_dir = os.path.join(base_path, app_name)
+    try:
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+    except Exception:
+        # Fallback to /tmp if we can't create the directory
+        data_dir = "/tmp"
+        
+    return data_dir
+
+# --- Setup Data Directory & Logging ---
+DATA_DIR = get_data_dir()
+DB_PATH = os.path.join(DATA_DIR, 'dashboard.db')
+LOG_PATH = os.path.join(DATA_DIR, 'debug.log')
+
 try:
-    log_file = os.path.join(os.path.expanduser('~'), 'Desktop', 'voltwise_debug.log')
     logging.basicConfig(
-        filename=log_file,
+        filename=LOG_PATH,
         level=logging.DEBUG,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
 except Exception:
-    # Fallback to /tmp if Desktop is not writable
-    logging.basicConfig(
-        filename='/tmp/voltwise_debug.log',
-        level=logging.DEBUG,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    # Fallback logging to stderr
+    logging.basicConfig(level=logging.DEBUG)
+
+logging.info(f"Starting VoltWise. Data Directory: {DATA_DIR}")
 
 app = Flask(__name__)
-DB_PATH = 'dashboard.db'
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
@@ -198,7 +221,18 @@ if __name__ == '__main__':
 
         # Run Flask in Background Thread
         def run_server():
+            # Find local IP for display
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(('10.255.255.255', 1))
+                local_ip = s.getsockname()[0]
+                s.close()
+            except Exception:
+                local_ip = "127.0.0.1"
+                
             logging.info("Starting Flask Server on Port 25555...")
+            print(f"\n * Dashboard available at: http://{local_ip}:25555\n")
+            
             # Disable reloader because it doesn't work well with threads/PyInstaller
             app.run(host='0.0.0.0', port=25555, debug=False, use_reloader=False)
 
