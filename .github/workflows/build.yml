@@ -34,11 +34,33 @@ jobs:
           cd central-dashboard
           pyinstaller --name "VoltWise-Windows" --add-data "templates;templates" --add-data "static;static" --windowed --onefile app.py
 
-      - name: Build with PyInstaller (Mac/Linux)
-        if: runner.os != 'Windows'
+      - name: Build with PyInstaller (Mac)
+        if: runner.os == 'macOS'
         run: |
           cd central-dashboard
-          pyinstaller --name "VoltWise-${{ runner.os }}" --add-data "templates:templates" --add-data "static:static" --windowed --onefile app.py
+          # Create .app bundle (not onefile) for DMG
+          pyinstaller --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --windowed --noconsole app.py
+
+      - name: Create DMG (Mac)
+        if: runner.os == 'macOS'
+        run: |
+          cd central-dashboard
+          brew install create-dmg
+          # Create DMG with drag-drop link
+          create-dmg \
+            --volname "VoltWise Installer" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --app-drop-link 600 185 \
+            "dist/VoltWise.dmg" \
+            "dist/VoltWise.app"
+
+      - name: Build with PyInstaller (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd central-dashboard
+          pyinstaller --name "VoltWise-Linux" --add-data "templates:templates" --add-data "static:static" --windowed --onefile app.py
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
@@ -48,8 +70,10 @@ jobs:
           name: Latest Build
           draft: false
           prerelease: false
-          files: central-dashboard/dist/*
-          overwrite: true
+          files: |
+            central-dashboard/dist/VoltWise-Windows.exe
+            central-dashboard/dist/VoltWise.dmg
+            central-dashboard/dist/VoltWise-Linux
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
