@@ -51,7 +51,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cd central-dashboard
-          pyinstaller --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --icon "icon.icns" --windowed --noconsole app.py
+          pyinstaller --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --icon "icon.icns" --console app.py
           brew install create-dmg
           # Cleanup old dmg if exists
           rm -f dist/VoltWise.dmg || true
