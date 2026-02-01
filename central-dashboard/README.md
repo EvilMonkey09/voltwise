@@ -10,10 +10,9 @@ This directory will contain the Central Dashboard application, designed to aggre
 
 You don't need to install Python or use the terminal.
 
-1.  Go to the [GitHub Actions Page](https://github.com/EvilMonkey09/voltwise/actions).
-2.  Click the latest workflow run.
-3.  Download the **Artifact** for your OS (`VoltWise-Windows` or `VoltWise-macOS`).
-4.  Run the app!
+1.  **[Download the Latest Release Here](https://github.com/EvilMonkey09/voltwise/releases/latest)**
+2.  Choose `VoltWise-Windows.exe` or `VoltWise-macOS`.
+3.  Run the app!
 
 ### Option 2: Run from Source
 
