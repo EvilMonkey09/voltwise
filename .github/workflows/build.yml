@@ -1,9 +1,7 @@
-name: Build VoltWise Central
+name: Build and Release
 
 on:
   push:
-    branches: ["main"]
-  pull_request:
     branches: ["main"]
 
 jobs:
@@ -28,25 +26,30 @@ jobs:
           cd central-dashboard
           pip install -r requirements.txt
 
-      - name: Build with PyInstaller (Windows)
+      # --- Windows Build ---
+      - name: Build Windows
         if: runner.os == 'Windows'
         run: |
           cd central-dashboard
           pyinstaller --name "VoltWise-Windows" --add-data "templates;templates" --add-data "static;static" --windowed --onefile app.py
 
-      - name: Build with PyInstaller (Mac)
-        if: runner.os == 'macOS'
+      # --- Linux Build ---
+      - name: Build Linux
+        if: runner.os == 'Linux'
         run: |
           cd central-dashboard
-          # Create .app bundle (not onefile) for DMG
-          pyinstaller --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --windowed --noconsole app.py
+          pyinstaller --name "VoltWise-Linux" --add-data "templates:templates" --add-data "static:static" --windowed --onefile app.py
 
-      - name: Create DMG (Mac)
+      # --- Mac Build & DMG ---
+      - name: Build Mac
         if: runner.os == 'macOS'
         run: |
           cd central-dashboard
+          pyinstaller --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --windowed --noconsole app.py
           brew install create-dmg
-          # Create DMG with drag-drop link
+          # Cleanup old dmg if exists
+          rm -f dist/VoltWise.dmg || true
+          # Create DMG
           create-dmg \
             --volname "VoltWise Installer" \
             --window-pos 200 120 \
@@ -56,29 +59,61 @@ jobs:
             "dist/VoltWise.dmg" \
             "dist/VoltWise.app"
 
-      - name: Build with PyInstaller (Linux)
-        if: runner.os == 'Linux'
+      # --- Prepare for Upload (Normalize Paths) ---
+      - name: Prepare Artifacts
+        shell: bash
         run: |
-          cd central-dashboard
-          pyinstaller --name "VoltWise-Linux" --add-data "templates:templates" --add-data "static:static" --windowed --onefile app.py
+          mkdir -p staging
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            mv central-dashboard/dist/VoltWise-Windows.exe staging/
+          elif [ "${{ runner.os }}" == "macOS" ]; then
+            mv central-dashboard/dist/VoltWise.dmg staging/
+          else
+            mv central-dashboard/dist/VoltWise-Linux staging/
+          fi
 
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v1
-        if: github.ref == 'refs/heads/main'
-        with:
-          tag_name: latest
-          name: Latest Build
-          draft: false
-          prerelease: false
-          files: |
-            central-dashboard/dist/VoltWise-Windows.exe
-            central-dashboard/dist/VoltWise.dmg
-            central-dashboard/dist/VoltWise-Linux
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Artifact
+      - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VoltWise-${{ runner.os }}
-          path: central-dashboard/dist/*
+          name: binary-${{ runner.os }}
+          path: staging/*
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # Download all artifacts from previous jobs
+      - name: Download Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-Windows
+          path: release_assets
+
+      - name: Download macOS
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-macOS
+          path: release_assets
+
+      - name: Download Linux
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-Linux
+          path: release_assets
+
+      - name: Update Latest Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: latest
+          name: Latest Release
+          draft: false
+          prerelease: false
+          files: release_assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
