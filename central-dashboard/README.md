@@ -22,6 +22,19 @@ If you are a developer:
 2.  Run `install_deps.sh` (or `pip install -r requirements.txt`).
 3.  Run `start_dashboard.sh`.
 
+## ⚠️ macOS Security Warning (Important)
+
+Since I am an independent developer and do not pay for an Apple Developer ID, macOS will show a warning:
+
+> **"VoltWise" can’t be opened because it is from an unidentified developer.**
+
+**Solution:**
+
+1.  **Right-Click** (or Control-Click) the App.
+2.  Select **Open** from the menu.
+3.  Click **Open** in the warning dialog.
+    _(You only need to do this once)_.
+
 ## Features
 
 - **Auto-Discovery**: Scans local network (Port 25500) for sensors.
