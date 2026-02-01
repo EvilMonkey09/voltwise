@@ -4,9 +4,27 @@ import sqlite3
 import threading
 import time
 from scanner import scan_network
+import logging
 
 import sys
 import os
+
+# --- Debug Logging Setup ---
+# Write logs to Desktop to help debug startup issues
+try:
+    log_file = os.path.join(os.path.expanduser('~'), 'Desktop', 'voltwise_debug.log')
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+except Exception:
+    # Fallback to /tmp if Desktop is not writable
+    logging.basicConfig(
+        filename='/tmp/voltwise_debug.log',
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
 
 app = Flask(__name__)
 DB_PATH = 'dashboard.db'
