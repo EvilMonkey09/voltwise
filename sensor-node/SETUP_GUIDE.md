@@ -135,4 +135,17 @@ You should now see the Real-Time Dashboard showing Voltage, Current, and Power!
 - **Can't find sensors?**
   Run the wizard manually: `sudo ./venv/bin/python3 configure_sensors.py`
 
+## 6. Updating VoltWise
+
+To update to the latest version, simply run the update script:
+
+1.  **Connect via SSH**: `ssh pi@raspberrypi.local`
+2.  **Go to the directory**: `cd voltwise/sensor-node`
+3.  **Run the update**:
+    ```bash
+    sudo ./update.sh
+    ```
+
+This will automatically pull the latest changes, update dependencies, and restart the service.
+
 Happy Monitoring! ⚡

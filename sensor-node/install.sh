@@ -16,7 +16,7 @@ echo -e "${GREEN}Starting VoltWise Installation...${NC}"
 # 1. System Dependencies
 echo -e "${YELLOW}Installing system dependencies...${NC}"
 sudo apt-get update
-sudo apt-get install -y python3-venv python3-pip libatlas-base-dev
+sudo apt-get install -y python3-venv python3-pip libopenblas-dev
 
 # 2. Add user to dialout group (needed for Serial/Modbus)
 echo -e "${YELLOW}Adding user $USER to 'dialout' group...${NC}"
