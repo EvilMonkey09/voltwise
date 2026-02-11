@@ -44,7 +44,7 @@ def stop_service():
 
 def list_serial_ports():
     if sys.platform.startswith('linux'):
-        return glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyAMA*') + glob.glob('/dev/ttyACM*')
+        return glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyAMA*') + glob.glob('/dev/ttyACM*') + glob.glob('/dev/ttyS*') + glob.glob('/dev/serial*')
     elif sys.platform.startswith('darwin'):
         return glob.glob('/dev/tty.*')
     return []
