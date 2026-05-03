@@ -67,6 +67,7 @@ def main():
     boot_until = time.time() + BOOT_GRACE_SEC
     offline_since: float | None = None
     setup_active = False
+    last_log_kind = ""
 
     print(
         f"voltwise-net: monitoring (boot_grace={BOOT_GRACE_SEC}s, "
@@ -77,6 +78,35 @@ def main():
         while True:
             now = time.time()
             connected = nm_helpers.has_real_connectivity()
+
+            # One line when *state kind* changes — no ERROR, but explains missing AP (e.g. false uplink).
+            if connected:
+                log_state = "uplink_ok"
+                extra = nm_helpers.connectivity_uplink_detail()
+            elif now < boot_until:
+                log_state = "boot_grace"
+                extra = f"{int(max(0, boot_until - now))}s left before offline detection"
+            elif setup_active:
+                log_state = "ap_running"
+                extra = "open SSID VoltWise-Setup-… + captive portal"
+            elif offline_since is None:
+                log_state = "offline_debounce"
+                extra = "starting timer (no LAN / no Wi-Fi client)"
+            elif now - offline_since < OFFLINE_DEBOUNCE_SEC:
+                log_state = "offline_debounce"
+                extra = (
+                    f"{int(OFFLINE_DEBOUNCE_SEC - (now - offline_since))}s until AP may start"
+                )
+            else:
+                log_state = "will_start_ap"
+                extra = "bringing up AP next"
+
+            if log_state != last_log_kind:
+                line = f"voltwise-net: state={log_state}"
+                if extra:
+                    line += f" — {extra}"
+                print(line, flush=True)
+                last_log_kind = log_state
 
             if connected:
                 offline_since = None

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ lang }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VoltWise Central</title>
+    <title>{{ t('browser_title') }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -13,41 +13,50 @@
             <span class="brand-sub">Central</span>
         </div>
         <div class="toolbar">
-            <button type="button" class="btn btn-primary" id="btn-scan">Scan network</button>
-            <button type="button" class="btn btn-danger" id="btn-record">Start recording all</button>
+            <div class="lang-switch" role="navigation" aria-label="Language">
+                <a href="{{ url_for('set_language', code='en') }}" class="lang-link{% if lang == 'en' %} active{% endif %}">{{ t('nav.lang_en') }}</a>
+                <span class="lang-sep">|</span>
+                <a href="{{ url_for('set_language', code='de') }}" class="lang-link{% if lang == 'de' %} active{% endif %}">{{ t('nav.lang_de') }}</a>
+            </div>
+            <button type="button" class="btn btn-primary" id="btn-scan">{{ t('nav.scan') }}</button>
+            <button type="button" class="btn btn-danger" id="btn-record">{{ t('nav.record_start') }}</button>
         </div>
     </header>
 
-    <p id="loading" class="loading hidden" role="status">Scanning…</p>
+    <p id="loading" class="loading hidden" role="status">{{ t('loading.scanning') }}</p>
 
     <div id="grid" class="grid"></div>
 
     <div id="modal-backdrop" class="modal-backdrop hidden" aria-hidden="true"></div>
     <div id="modal" class="modal hidden" role="dialog" aria-labelledby="modal-title">
-        <h2 id="modal-title">Recording name</h2>
-        <p class="muted">This event name is sent to every VoltWise Node.</p>
-        <input type="text" id="modal-input" placeholder="Event name" autocomplete="off">
+        <h2 id="modal-title">{{ t('modal.recording_title') }}</h2>
+        <p class="muted">{{ t('modal.recording_hint') }}</p>
+        <input type="text" id="modal-input" placeholder="{{ t('modal.placeholder') }}" autocomplete="off">
         <div class="modal-actions">
-            <button type="button" class="btn btn-ghost" id="modal-cancel">Cancel</button>
-            <button type="button" class="btn btn-primary" id="modal-ok">Start</button>
+            <button type="button" class="btn btn-ghost" id="modal-cancel">{{ t('modal.cancel') }}</button>
+            <button type="button" class="btn btn-primary" id="modal-ok">{{ t('modal.start') }}</button>
         </div>
     </div>
 
     <div id="upd-modal-backdrop" class="modal-backdrop hidden" aria-hidden="true"></div>
     <div id="upd-modal" class="modal hidden" role="dialog" aria-labelledby="upd-modal-title">
-        <h2 id="upd-modal-title">Update available</h2>
+        <h2 id="upd-modal-title">{{ t('upd.title') }}</h2>
         <p class="muted">
-            Installed: <span id="upd-inst"></span> · Latest:
+            {{ t('upd.lead') }} <span id="upd-inst"></span> · {{ t('upd.latest') }}
             <span id="upd-new"></span>
         </p>
         <div class="modal-actions">
-            <button type="button" class="btn btn-ghost" id="upd-later">Later</button>
-            <a class="btn btn-primary" id="upd-open-release" href="#" target="_blank" rel="noopener">Open release page</a>
-            <a class="btn btn-primary hidden" id="upd-dl" href="#" target="_blank" rel="noopener">Download installer</a>
+            <button type="button" class="btn btn-ghost" id="upd-later">{{ t('upd.later') }}</button>
+            <a class="btn btn-primary" id="upd-open-release" href="#" target="_blank" rel="noopener">{{ t('upd.open_release') }}</a>
+            <a class="btn btn-primary hidden" id="upd-dl" href="#" target="_blank" rel="noopener">{{ t('upd.download') }}</a>
         </div>
     </div>
 
     <script>
+        window.VW_CENTRAL = {{ vw_central | tojson }};
+    </script>
+    <script>
+        const C = window.VW_CENTRAL || {};
         let isRecording = false;
         let modalResolve = null;
 
@@ -78,9 +87,9 @@
         function fmtSeen(ts) {
             if (ts == null || ts === '') return '—';
             const sec = Math.floor(Date.now() / 1000 - ts);
-            if (sec < 45) return 'just now';
-            if (sec < 3600) return Math.floor(sec / 60) + ' min ago';
-            return Math.floor(sec / 3600) + ' h ago';
+            if (sec < 45) return C.seen_just_now || 'just now';
+            if (sec < 3600) return Math.floor(sec / 60) + ' ' + (C.seen_min_ago || 'min ago');
+            return Math.floor(sec / 3600) + ' ' + (C.seen_h_ago || 'h ago');
         }
 
         let livePollId = null;
@@ -103,8 +112,7 @@
             if (d.simulation) {
                 const sim = document.createElement('p');
                 sim.className = 'sim-banner';
-                sim.textContent =
-                    'Demo / simulation — synthetic readings, not live PZEM hardware.';
+                sim.textContent = C.live_sim_banner || '';
                 root.appendChild(sim);
             }
             const sensors = d.sensors || {};
@@ -118,12 +126,12 @@
                 const card = document.createElement('div');
                 card.className = 'phase-card';
                 const h = document.createElement('h4');
-                h.textContent = 'Sensor / Phase · Addr ' + addr;
+                h.textContent = (C.live_sensor_heading || 'Sensor') + ' ' + addr;
                 card.appendChild(h);
                 if (!s) {
                     const p = document.createElement('p');
                     p.className = 'muted';
-                    p.textContent = 'No data';
+                    p.textContent = C.live_no_data || '';
                     card.appendChild(p);
                     grid.appendChild(card);
                     continue;
@@ -131,12 +139,12 @@
                 const dl = document.createElement('dl');
                 dl.className = 'metric-dl';
                 const rows = [
-                    ['Voltage', fmtVal(s.voltage, ' V')],
-                    ['Current', fmtVal(s.current, ' A')],
-                    ['Power', fmtVal(s.power, ' W')],
-                    ['Energy', fmtVal(s.energy, ' Wh')],
-                    ['Frequency', fmtVal(s.frequency, ' Hz')],
-                    ['Power factor', fmtVal(s.pf, '')],
+                    [C.live_voltage, fmtVal(s.voltage, ' V')],
+                    [C.live_current, fmtVal(s.current, ' A')],
+                    [C.live_power, fmtVal(s.power, ' W')],
+                    [C.live_energy, fmtVal(s.energy, ' Wh')],
+                    [C.live_frequency, fmtVal(s.frequency, ' Hz')],
+                    [C.live_pf, fmtVal(s.pf, '')],
                 ];
                 rows.forEach(([label, val]) => {
                     const row = document.createElement('div');
@@ -160,7 +168,9 @@
                 const nr = document.createElement('div');
                 nr.className = 'neutral-row';
                 nr.innerHTML =
-                    '<span>Neutral current (calc.)</span><span>' +
+                    '<span>' +
+                    (C.live_neutral || '') +
+                    '</span><span>' +
                     Number(d.neutral_current).toFixed(3) +
                     ' A</span>';
                 root.appendChild(nr);
@@ -178,7 +188,9 @@
                     card.getAttribute('data-node-online') === '1';
                 if (!online) {
                     liveEl.innerHTML =
-                        '<p class="live-offline">Node offline — no live data.</p>';
+                        '<p class="live-offline">' +
+                        (C.live_offline || '') +
+                        '</p>';
                     continue;
                 }
                 try {
@@ -194,7 +206,9 @@
                     liveEl.appendChild(buildLiveContent(j));
                 } catch (e) {
                     liveEl.innerHTML =
-                        '<p class="live-error">Could not load readings ( network or node ).</p>';
+                        '<p class="live-error">' +
+                        (C.live_error || '') +
+                        '</p>';
                 }
             }
         }
@@ -206,15 +220,20 @@
         }
 
         async function discoverNodes() {
+            const scanning = C.loading_scanning || '…';
             document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('loading').textContent = scanning;
             try {
                 const res = await fetch('/api/discover', { method: 'POST' });
                 const data = await res.json();
-                document.getElementById('loading').textContent =
-                    'Found ' + data.count + ' VoltWise Node(s).';
+                const tpl = C.discover_found || 'Found {count}.';
+                document.getElementById('loading').textContent = tpl.replace(
+                    /\{count\}/g,
+                    String(data.count)
+                );
                 setTimeout(() => {
                     document.getElementById('loading').classList.add('hidden');
-                    document.getElementById('loading').textContent = 'Scanning…';
+                    document.getElementById('loading').textContent = scanning;
                 }, 2000);
                 loadNodes();
             } catch (e) {
@@ -224,11 +243,13 @@
 
         async function toggleRecording() {
             const btn = document.getElementById('btn-record');
+            const startLab = C.nav_record_start || '';
+            const stopLab = C.nav_record_stop || '';
             if (!isRecording) {
                 const name = await showModal(
-                    'Recording name',
-                    'Central event',
-                    'Central event'
+                    C.modal_recording_title || '',
+                    C.modal_placeholder || '',
+                    C.modal_event_default || ''
                 );
                 if (!name) return;
                 await fetch('/api/recording/start_all', {
@@ -237,13 +258,13 @@
                     body: JSON.stringify({ name })
                 });
                 isRecording = true;
-                btn.textContent = 'Stop recording all';
+                btn.textContent = stopLab;
                 btn.classList.remove('btn-danger');
                 btn.classList.add('btn-muted');
             } else {
                 await fetch('/api/recording/stop_all', { method: 'POST' });
                 isRecording = false;
-                btn.textContent = 'Start recording all';
+                btn.textContent = startLab;
                 btn.classList.add('btn-danger');
                 btn.classList.remove('btn-muted');
             }
@@ -263,6 +284,12 @@
             const grid = document.getElementById('grid');
             grid.innerHTML = '';
             grid.classList.toggle('grid-multi', nodes.length > 1);
+            const ipPrefix = (C.grid_ip || 'IP') + ' ';
+            const lastSeen = C.grid_last_seen || '';
+            const liveMsg = C.live_loading || '';
+            const ph = C.grid_display_placeholder || '';
+            const saveLab = C.grid_save || '';
+            const fullUi = C.grid_full_ui || '';
             nodes.forEach((node) => {
                 const title = node.node_label || node.hostname || node.ip;
                 const online = node.status === 'online';
@@ -275,13 +302,13 @@
                         <h3 class="card-title"></h3>
                         <span class="pill pill-${node.status || 'offline'}"></span>
                     </div>
-                    <p class="meta">IP ${node.ip}</p>
-                    <p class="meta subtle">Last seen: <span class="seen"></span></p>
-                    <div class="node-live"><p class="muted live-loading-msg">Loading readings…</p></div>
+                    <p class="meta">${ipPrefix}${node.ip}</p>
+                    <p class="meta subtle">${lastSeen} <span class="seen"></span></p>
+                    <div class="node-live"><p class="muted live-loading-msg">${liveMsg}</p></div>
                     <div class="card-actions">
-                        <input type="text" class="label-input" placeholder="Display name" aria-label="Display name">
-                        <button type="button" class="btn btn-ghost btn-sm save-label">Save</button>
-                        <a class="btn btn-primary btn-sm" href="http://${node.ip}:25500/" target="_blank" rel="noopener">Full node UI</a>
+                        <input type="text" class="label-input" placeholder="${ph.replace(/"/g, '&quot;')}" aria-label="${ph.replace(/"/g, '&quot;')}">
+                        <button type="button" class="btn btn-ghost btn-sm save-label">${saveLab}</button>
+                        <a class="btn btn-primary btn-sm" href="http://${node.ip}:25500/" target="_blank" rel="noopener">${fullUi}</a>
                     </div>`;
                 card.querySelector('.card-title').textContent = title;
                 card.querySelector('.seen').textContent = fmtSeen(node.last_seen);

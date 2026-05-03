@@ -106,6 +106,42 @@ def has_real_connectivity() -> bool:
     return False
 
 
+def connectivity_uplink_detail() -> str:
+    """Why has_real_connectivity() is True — for journal diagnostics."""
+    if ethernet_ready():
+        for iface in ("eth0", "end0"):
+            cpath = Path(f"/sys/class/net/{iface}/carrier")
+            if not cpath.exists():
+                continue
+            try:
+                if cpath.read_text().strip() != "1":
+                    continue
+            except OSError:
+                continue
+            pr = subprocess.run(
+                ["ip", "-4", "-o", "addr", "show", "dev", iface],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if pr.returncode == 0 and pr.stdout.strip() and " inet " in pr.stdout:
+                return f"LAN {iface} has IPv4"
+    r = run_nmcli(["-t", "-f", "NAME", "connection", "show", "--active"], timeout=15)
+    if r.returncode != 0:
+        return "nmcli connection show --active failed"
+    for line in r.stdout.strip().split("\n"):
+        name = line.strip()
+        if not name or name == SETUP_CON_NAME:
+            continue
+        ty = run_nmcli(["-g", "connection.type", "connection", "show", name], timeout=10)
+        if ty.returncode != 0:
+            continue
+        ctype = (ty.stdout or "").strip()
+        if ctype == "802-11-wireless":
+            return f"Wi-Fi client profile active: {name!r}"
+    return "unknown (internal mismatch)"
+
+
 def setup_ssid_suffix() -> str:
     wlan = wifi_iface()
     if wlan:

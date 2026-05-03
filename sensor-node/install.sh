@@ -181,11 +181,11 @@ sudo cp "$SCRIPT_DIR/voltwise-apply-update.sh" /usr/local/sbin/voltwise-apply-up
 sudo chmod 755 /usr/local/sbin/voltwise-apply-update.sh
 
 sudo systemctl daemon-reload
-sudo systemctl enable "$SERVICE_NAME"
-sudo systemctl enable "$NET_SERVICE_NAME"
+# --now: start units immediately (otherwise AP helper only runs after next reboot)
+sudo systemctl enable --now "$SERVICE_NAME"
+sudo systemctl enable --now "$NET_SERVICE_NAME"
 
 echo -e "${GREEN}Installation complete.${NC}"
-echo -e "Start node:     ${YELLOW}sudo systemctl start ${SERVICE_NAME}${NC}"
-echo -e "Start setup AP service: ${YELLOW}sudo systemctl start ${NET_SERVICE_NAME}${NC}"
+echo -e "Services are running (${SERVICE_NAME}, ${NET_SERVICE_NAME}). If needed: ${YELLOW}sudo systemctl restart ${NET_SERVICE_NAME}${NC}"
 echo -e "Dashboard (when connected): ${YELLOW}http://<node-ip>:25500${NC}"
 echo -e "${YELLOW}Log out and back in (or reboot) so group dialout applies.${NC}"

@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ lang }}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VoltWise Node</title>
+    <title>{{ t('browser_title') }}</title>
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
@@ -18,33 +18,36 @@
           <span>{{ node_display_name }}</span>
         </div>
         <div class="header-actions">
-          <a href="/settings" class="nav-settings">Settings</a>
-          <div id="connection-status" class="status-indicator">Connecting...</div>
+          <div class="lang-switch" role="navigation" aria-label="Language">
+            <a href="{{ url_for('set_language', code='en') }}" class="lang-link{% if lang == 'en' %} active{% endif %}">{{ t('nav.lang_en') }}</a>
+            <span class="lang-sep">|</span>
+            <a href="{{ url_for('set_language', code='de') }}" class="lang-link{% if lang == 'de' %} active{% endif %}">{{ t('nav.lang_de') }}</a>
+          </div>
+          <a href="/settings" class="nav-settings">{{ t('nav.settings') }}</a>
+          <div id="connection-status" class="status-indicator">{{ t('status.connecting') }}</div>
         </div>
       </header>
 
       <p id="demo-banner" class="demo-banner" hidden>
-        <strong>Demo-Modus:</strong> Testdaten ohne PZEM — Serielle Hardware wird nicht benötigt.
+        <strong>{{ t('index.demo_label') }}:</strong> {{ t('index.demo_body') }}
       </p>
 
       <section class="live-data">
-        <h2>Live measurements</h2>
-        <p class="section-lead">
-          Alle Kanäle mit Spannung, Strom, Leistung, Energie, Frequenz und Leistungsfaktor.
-        </p>
+        <h2>{{ t('index.live_measurements') }}</h2>
+        <p class="section-lead">{{ t('index.live_lead') }}</p>
 
         <div class="table-responsive live-table-wrap">
           <table class="live-table">
             <thead>
               <tr>
-                <th scope="col">Sensor</th>
+                <th scope="col">{{ t('index.table.sensor') }}</th>
                 <th scope="col" class="num-col">U<br /><span class="th-unit">V</span></th>
                 <th scope="col" class="num-col">I<br /><span class="th-unit">A</span></th>
                 <th scope="col" class="num-col">P<br /><span class="th-unit">W</span></th>
                 <th scope="col" class="num-col">E<br /><span class="th-unit">Wh</span></th>
                 <th scope="col" class="num-col">f<br /><span class="th-unit">Hz</span></th>
                 <th scope="col" class="num-col">PF</th>
-                <th scope="col" class="action-col">Energy reset</th>
+                <th scope="col" class="action-col">{{ t('index.table.reset') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -65,8 +68,8 @@
                     type="button"
                     class="btn-icon reset-btn"
                     data-address="{{ address }}"
-                    title="Reset energy counter"
-                    aria-label="Reset energy"
+                    title="{{ t('index.reset_title') }}"
+                    aria-label="{{ t('index.reset_aria') }}"
                   >
                     ↺
                   </button>
@@ -79,13 +82,13 @@
 
         <div class="live-summary-bar">
           <div class="summary-item">
-            <span class="summary-label">Σ Active power</span>
+            <span class="summary-label">{{ t('index.summary.power') }}</span>
             <span class="summary-value" id="total-power">—</span>
             <span class="summary-unit">W</span>
           </div>
           {% if sensors|length == 3 %}
           <div class="summary-item summary-neutral">
-            <span class="summary-label">Neutral current (calc.)</span>
+            <span class="summary-label">{{ t('index.summary.neutral') }}</span>
             <span class="summary-value" id="neutral-current">—</span>
             <span class="summary-unit">A</span>
           </div>
@@ -94,23 +97,23 @@
       </section>
 
       <section class="live-charts">
-        <h2>Live trends</h2>
-        <p class="section-lead">Letzte Messpunkte — eine Linie pro Phase (und Neutral beim Strom).</p>
+        <h2>{{ t('index.charts.title') }}</h2>
+        <p class="section-lead">{{ t('index.charts.lead') }}</p>
         <div class="dashboard-grid charts-grid charts-grid-wide">
           <div class="card chart-card">
-            <h3>Voltage</h3>
+            <h3>{{ t('index.chart_voltage') }}</h3>
             <div class="chart-canvas-wrap">
               <canvas id="chart-live-voltage"></canvas>
             </div>
           </div>
           <div class="card chart-card">
-            <h3>Current</h3>
+            <h3>{{ t('index.chart_current') }}</h3>
             <div class="chart-canvas-wrap">
               <canvas id="chart-live-current"></canvas>
             </div>
           </div>
           <div class="card chart-card chart-card-span">
-            <h3>Power</h3>
+            <h3>{{ t('index.chart_power') }}</h3>
             <div class="chart-canvas-wrap chart-canvas-tall">
               <canvas id="chart-live-power"></canvas>
             </div>
@@ -120,19 +123,19 @@
 
       <section class="history-section">
         <div class="section-header">
-          <h2>Event Management</h2>
-          <button id="btn-create-event" class="btn primary">+ Create New Event</button>
+          <h2>{{ t('index.events.title') }}</h2>
+          <button id="btn-create-event" class="btn primary">{{ t('index.events.create') }}</button>
         </div>
 
         <div class="table-responsive">
           <table id="events-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Start Time</th>
-                <th>Duration</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th>{{ t('index.events.th_name') }}</th>
+                <th>{{ t('index.events.th_start') }}</th>
+                <th>{{ t('index.events.th_duration') }}</th>
+                <th>{{ t('index.events.th_status') }}</th>
+                <th>{{ t('index.events.th_actions') }}</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -143,23 +146,23 @@
 
     <div id="update-backdrop" class="modal-backdrop hidden" aria-hidden="true"></div>
     <div id="update-modal" class="vw-modal hidden" role="dialog" aria-labelledby="upd-title">
-      <h2 id="upd-title">Software-Update</h2>
+      <h2 id="upd-title">{{ t('upd.title') }}</h2>
       <p class="muted">
-        Neu auf GitHub: <strong id="upd-latest"></strong> — installiert:
+        {{ t('upd.lead') }} <strong id="upd-latest"></strong> — {{ t('upd.installed') }}
         <span id="upd-current"></span>
       </p>
       <p id="upd-no-sudo" class="hint hidden">
-        Automatisches Update nicht eingerichtet — per SSH im Ordner
-        <code>sensor-node</code>:
+        {{ t('upd.no_sudo') }}
         <code>sudo ./update.sh</code>
       </p>
       <div class="modal-actions">
-        <button type="button" class="btn secondary" id="upd-dismiss">Später</button>
-        <button type="button" class="btn primary" id="upd-install">Jetzt installieren</button>
+        <button type="button" class="btn secondary" id="upd-dismiss">{{ t('upd.later') }}</button>
+        <button type="button" class="btn primary" id="upd-install">{{ t('upd.install') }}</button>
       </div>
       <pre id="upd-log" class="upd-log hidden"></pre>
     </div>
 
+    <script>window.VW_I18N = {{ vw_js | tojson }};</script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
   </body>
 </html>

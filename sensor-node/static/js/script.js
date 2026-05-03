@@ -1,5 +1,6 @@
 
 document.addEventListener("DOMContentLoaded", () => {
+  const I = window.VW_I18N || {};
   const statusEl = document.getElementById("connection-status");
   const btnCreate = document.getElementById("btn-create-event");
 
@@ -28,12 +29,12 @@ document.addEventListener("DOMContentLoaded", () => {
         demoBanner.hidden = !data.simulation;
       }
       
-      statusEl.textContent = "Connected";
+      statusEl.textContent = I.connected || "Connected";
       statusEl.style.color = "green";
 
     } catch (error) {
       console.error("Error fetching data:", error);
-      statusEl.textContent = "Disconnected";
+      statusEl.textContent = I.disconnected || "Disconnected";
       statusEl.style.color = "red";
     }
   }
@@ -82,7 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const btn = e.target.closest(".reset-btn");
     if (!btn) return;
     const address = btn.getAttribute("data-address");
-    if (!address || !confirm("Energy counter for this sensor reset?")) return;
+    if (!address || !confirm(I.reset_confirm || "?")) return;
     try {
       const res = await fetch("/api/reset", {
         method: "POST",
@@ -90,9 +91,9 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({ address: Number(address) }),
       });
       const j = await res.json();
-      if (!j.success) alert(j.error || "Reset failed");
+      if (!j.success) alert(j.error || I.reset_failed || "");
     } catch (err) {
-      alert("Reset failed");
+      alert(I.reset_failed || "");
     }
   });
 
@@ -196,7 +197,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Event Management ---
   
   btnCreate.addEventListener("click", async () => {
-    const name = prompt("Enter Event Name:");
+    const name = prompt(I.event_prompt || "");
     if (!name) return;
     
     try {
@@ -214,7 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
         alert(json.error);
       }
     } catch (e) {
-      alert("Error creating event");
+      alert(I.event_create_error || "");
     }
   });
 
@@ -231,16 +232,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const start = new Date(evt.start_time * 1000).toLocaleString();
         
         // Status logic
-        let status = "Created";
-        if (evt.end_time) status = "Closed";
-        if (evt.is_active) status = "recording..."; 
+        let status = I.events_created || "";
+        if (evt.end_time) status = I.events_closed || "";
+        if (evt.is_active) status = I.events_recording || "";
         
-        // Duration
-        let duration = "-";
+        let duration = "—";
         if (evt.end_time) {
-            duration = ((evt.end_time - evt.start_time) / 60).toFixed(1) + " min";
+            duration = ((evt.end_time - evt.start_time) / 60).toFixed(1) + " " + (I.min_unit || "min");
         } else if (evt.is_active) {
-            duration = "Running"; 
+            duration = I.events_running || "";
         }
 
         tr.innerHTML = `
@@ -252,10 +252,10 @@ document.addEventListener("DOMContentLoaded", () => {
             <td>${duration}</td>
             <td>${status}</td>
             <td>
-                <a href="/events/${evt.id}" class="btn primary small">Open</a>
-                <button class="btn secondary small" onclick="renameEvent(this, ${evt.id})">Rename</button>
-                <button class="btn danger small" onclick="deleteEvent(${evt.id})">Delete</button>
-                <a href="/api/events/${evt.id}/export" class="btn secondary small" target="_blank">CSV</a>
+                <a href="/events/${evt.id}" class="btn primary small">${I.btn_open || "Open"}</a>
+                <button class="btn secondary small" onclick="renameEvent(this, ${evt.id})">${I.btn_rename || ""}</button>
+                <button class="btn danger small" onclick="deleteEvent(${evt.id})">${I.btn_delete || ""}</button>
+                <a href="/api/events/${evt.id}/export" class="btn secondary small" target="_blank">${I.btn_csv || "CSV"}</a>
             </td>
         `;
         tbody.appendChild(tr);
@@ -274,7 +274,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (input.classList.contains('hidden')) {
           input.classList.remove('hidden');
           span.classList.add('hidden');
-          btn.textContent = "Save";
+          btn.textContent = I.btn_save || "Save";
           input.focus();
       } else {
           // Save
@@ -291,7 +291,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   
   window.deleteEvent = async (id) => {
-      if (confirm("Are you sure? This will delete all data for this event.")) {
+      if (confirm(I.delete_confirm || "")) {
           await fetch(`/api/events/${id}`, { method: 'DELETE' });
           loadHistory();
       }
@@ -324,7 +324,7 @@ document.addEventListener("DOMContentLoaded", () => {
         installBtn.disabled = true;
         const logEl = document.getElementById("upd-log");
         logEl.classList.remove("hidden");
-        logEl.textContent = "Installiere…";
+        logEl.textContent = I.installing || "";
         try {
           const resp = await fetch("/api/update/apply", {
             method: "POST",
@@ -340,7 +340,7 @@ document.addEventListener("DOMContentLoaded", () => {
             (out.error || "") +
             "\n";
           if (out.ok) {
-            logEl.textContent += "\nFertig — Seite lädt gleich neu…";
+            logEl.textContent += "\n" + (I.install_done || "");
             setTimeout(() => location.reload(), 5000);
           }
         } catch (e) {

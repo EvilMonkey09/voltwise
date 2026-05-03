@@ -138,15 +138,28 @@ The **`voltwise-network`** service runs continuously: whenever the Pi has **no u
 - **SSID:** `VoltWise-Setup-` followed by a short id (e.g. last digits of the Wi‑Fi MAC).
 - **No password.** Connect with a phone or laptop; the **captive portal** (port 80) lets you add one or more Wi-Fi networks. When the node gets back online, the AP stops until the next time there is no uplink.
 
+**Timing:** After boot, the daemon waits **by default ~90 s** (`VOLTWISE_NET_WAIT`) before it treats the device as “offline”, then **~45 s** more (`VOLTWISE_OFFLINE_BEFORE_AP`) before opening the AP — so the SSID can appear only after **roughly two minutes** without LAN/Wi‑Fi. Do not expect the network immediately after power-on.
+
+**Service must be running:** Current `install.sh` uses `systemctl enable --now` so **`voltwise-network` starts right after install**. Older setups only used `enable`: then you had to **`sudo systemctl start voltwise-network`** once or **reboot** before the AP logic ran at all.
+
 You can also manage saved Wi‑Fi profiles and set the **node display name** and timezone under **Settings** in the dashboard (`http://<ip>:25500/settings`) when you are already on the network.
 
 Environment tuning (optional): `VOLTWISE_NET_WAIT` (boot grace before counting “offline”, default 90), `VOLTWISE_OFFLINE_BEFORE_AP` (seconds without uplink before opening the AP, default 45).
 
-Service: `sudo systemctl status voltwise-network`
+Check status: `sudo systemctl status voltwise-network` · Logs: `journalctl -u voltwise-network -b --no-pager`
+
+The daemon logs **`voltwise-net: state=…`** when the situation changes (no failure needed): `uplink_ok` means NetworkManager still sees LAN IPv4 or an active Wi‑Fi **client** profile — then the setup AP is intentionally off. After updating this software use **`sudo systemctl restart voltwise-network`** so the new logging is active.
 
 ---
 
 ## Troubleshooting
+
+- **No `VoltWise-Setup-…` Wi‑Fi after unplugging Ethernet?**
+  1. Wait **~2 minutes** after boot (see timing above).
+  2. Ensure the helper is **active**: `sudo systemctl status voltwise-network` — if inactive: `sudo systemctl start voltwise-network` (and consider re-running `install.sh` or `sudo systemctl enable --now voltwise-network`).
+  3. Read logs: `journalctl -u voltwise-network -b --no-pager` — look for `starting open setup AP`, `failed to start AP`, or `no Wi-Fi interface`.
+  4. On Raspberry Pi OS you need **NetworkManager** (installed by `install.sh`) and a working **`wlan0`** (Wi‑Fi not blocked: `rfkill list`; country set under **Raspberry Pi OS locale / wireless settings** if the interface stays down).
+  5. If a **saved Wi‑Fi profile** still shows as connected in NetworkManager even though you have no internet, the daemon may think you are “online” and skip the AP — remove or disable that profile from **nm-connection-editor** (or temporarily forget the network) and reboot without Ethernet.
 
 - **Dashboard not loading?**
   Check if service is running: `sudo systemctl status voltwise`

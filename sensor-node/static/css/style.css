@@ -619,6 +619,33 @@ tbody tr:hover {
   border: 1px solid var(--vw-border);
 }
 
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.lang-switch .lang-sep {
+  color: var(--vw-muted);
+  user-select: none;
+}
+
+.lang-switch .lang-link {
+  color: var(--vw-muted);
+  text-decoration: none;
+}
+
+.lang-switch .lang-link:hover {
+  color: var(--vw-accent);
+}
+
+.lang-switch .lang-link.active {
+  color: var(--vw-accent);
+  font-weight: 600;
+}
+
 @media (max-width: 600px) {
   .event-input-group {
     flex-direction: column;

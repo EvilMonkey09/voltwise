@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, Response
+from flask import Flask, render_template, jsonify, request, Response, g, redirect, url_for
 import logging
 import os
 import platform
@@ -11,6 +11,7 @@ import threading
 import time
 from pathlib import Path
 
+import i18n
 from scanner import scan_network
 import voltwise_release_info
 
@@ -56,6 +57,43 @@ except Exception:
 logging.info(f"Starting VoltWise. Data Directory: {DATA_DIR}")
 
 app = Flask(__name__)
+
+
+@app.before_request
+def _central_set_locale():
+    g.locale = i18n.resolve_locale(request)
+
+
+@app.context_processor
+def _central_i18n_context():
+    loc = getattr(g, "locale", "en")
+
+    def _t(key: str) -> str:
+        return i18n.translate(loc, key)
+
+    return dict(
+        t=_t,
+        lang=loc,
+        vw_central=i18n.central_js_strings(loc),
+    )
+
+
+@app.route("/set-language/<code>")
+def set_language(code):
+    code = (code or "").lower()
+    if code not in i18n.LOCALES:
+        code = "en"
+    dest = request.referrer or url_for("index")
+    resp = redirect(dest)
+    resp.set_cookie(
+        i18n.COOKIE_NAME,
+        code,
+        max_age=365 * 24 * 3600,
+        samesite="Lax",
+        path="/",
+    )
+    return resp
+
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, g, redirect, url_for
 import math
 import os
 import socket
@@ -8,6 +8,7 @@ import threading
 import time
 from pathlib import Path
 
+import i18n
 import config
 import node_settings
 import voltwise_release_info
@@ -19,6 +20,45 @@ _OTA_SCRIPT = "/usr/local/sbin/voltwise-apply-update.sh"
 _OTA_DIR_FILE = "/etc/voltwise/sensor_node_dir"
 
 app = Flask(__name__)
+
+
+@app.before_request
+def _set_locale():
+    g.locale = i18n.resolve_locale(request)
+
+
+@app.context_processor
+def _i18n_context():
+    loc = getattr(g, "locale", "en")
+
+    def _t(key: str) -> str:
+        return i18n.translate(loc, key)
+
+    return dict(
+        t=_t,
+        lang=loc,
+        vw_js=i18n.client_strings(loc),
+        vw_settings=i18n.settings_js_strings(loc),
+        vw_event=i18n.event_client_strings(loc),
+    )
+
+
+@app.route("/set-language/<code>")
+def set_language(code):
+    code = (code or "").lower()
+    if code not in i18n.LOCALES:
+        code = "en"
+    dest = request.referrer or url_for("index")
+    resp = redirect(dest)
+    resp.set_cookie(
+        i18n.COOKIE_NAME,
+        code,
+        max_age=365 * 24 * 3600,
+        samesite="Lax",
+        path="/",
+    )
+    return resp
+
 
 # Global State
 latest_data = {}

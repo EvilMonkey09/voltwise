@@ -2,6 +2,8 @@
 document.addEventListener("DOMContentLoaded", async () => {
     if (typeof EVENT_ID === 'undefined') return;
 
+    const E = window.VW_EVENT || {};
+
     const nameEl = document.getElementById('event-name');
     const nameHeaderEl = document.getElementById('event-name-header');
     const startEl = document.getElementById('event-start');
@@ -46,10 +48,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         pointsEl.textContent = data.logs.length;
         
         // Duration
+        const mu = E.min_unit || "min";
         if (d.end_time) {
-             durationEl.textContent = ((d.end_time - d.start_time)/60).toFixed(1) + " min";
+             durationEl.textContent = ((d.end_time - d.start_time)/60).toFixed(1) + " " + mu;
         } else {
-             durationEl.textContent = "Open";
+             durationEl.textContent = E.duration_open || "Open";
         }
         
         btnDownload.href = `/api/events/${EVENT_ID}/export`;
@@ -101,7 +104,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const labels = displayLogs.map(l => new Date(l.timestamp * 1000).toLocaleTimeString());
         
         if (!charts.voltage) {
-             charts.voltage = createLineChart('chart-voltage', 'Voltage (V)');
+             charts.voltage = createLineChart('chart-voltage', E.chart_v || 'Voltage (V)');
         }
         updateChartData(charts.voltage, labels, [
             { label: 'L1', data: displayLogs.map(l=>l.p1_v), borderColor: 'red' },
@@ -110,7 +113,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         ], inputYVol.value);
         
         if (!charts.current) {
-             charts.current = createLineChart('chart-current', 'Current (A)');
+             charts.current = createLineChart('chart-current', E.chart_i || 'Current (A)');
         }
         updateChartData(charts.current, labels, [
             { label: 'L1', data: displayLogs.map(l=>l.p1_i), borderColor: 'red' },
@@ -120,7 +123,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         ], inputYCur.value);
 
         if (!charts.power) {
-             charts.power = createLineChart('chart-power', 'Power (W)');
+             charts.power = createLineChart('chart-power', E.chart_p || 'Power (W)');
         }
         // Calculate Total
         const totalP = displayLogs.map(l => (l.p1_p||0)+(l.p2_p||0)+(l.p3_p||0));
