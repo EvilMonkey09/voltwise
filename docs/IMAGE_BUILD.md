@@ -70,11 +70,11 @@ Weiterhin möglich: Repo klonen und `sudo ./install.sh` auf einem normalen Raspb
 
 ## GitHub Actions (CI)
 
-Im Repository gibt es den Workflow **„Build SD image“** (`.github/workflows/build-sd-image.yml`):
+- **Nur SD-Image:** Workflow **„Build SD image“** (`.github/workflows/build-sd-image.yml`) — manuell unter **Actions** → **Run workflow**. Ergebnis: **Artifact** mit der **`.xz`**.
+- **Komplett-Release (empfohlen):** Workflow **„Release (Node SD + Central)“** (`.github/workflows/release.yml`) läuft beim Push eines Tags **`v*`** (z. B. `v1.0.2`). Das **GitHub Release** enthält dann:
+  - **Node:** `VoltWise-Node-RaspberryPi-arm64-bookworm-lite.img.xz` (Raspberry Pi Imager)
+  - **Central:** Windows-EXE, Linux-Binary, macOS-DMG
 
-- **Manuell:** GitHub → **Actions** → **Build SD image** → **Run workflow**.
-- **Automatisch beim Tag:** Tag im Format **`v*`** pushen (z. B. `v1.2.0`) → nach erfolgreichem Lauf liegt **`voltwise-node-bookworm-arm64-lite.img.xz`** als **Artifact** vor und wird an das **GitHub Release** zu diesem Tag angehängt.
+Der SD-Build läuft **ohne Docker** auf dem **Ubuntu-Runner** (`sudo losetup` / `mount`). Lokal weiterhin **`tools/image-build/build-image.sh`** (Docker) oder **`docker-build-inner.sh`** mit `SOURCE_DIR` / `OUTPUT_DIR` / `CACHE_DIR`.
 
-Der Workflow läuft **ohne Docker** direkt auf dem GitHub-**Ubuntu-Runner** (`sudo losetup` / `mount`). Lokal kannst du weiter **`tools/image-build/build-image.sh`** (Docker) oder dasselbe Skript **`docker-build-inner.sh`** mit gesetzten `SOURCE_DIR`/`OUTPUT_DIR`/`CACHE_DIR` ausführen. Hochgeladen wird nur die **`.xz`**.
-
-**Hinweis:** Der Download-Link zu Raspberry Pi OS in `docker-build-inner.sh` kann veralten. Im GitHub-Repository unter **Settings → Secrets and variables → Actions → Variables** kann **`RPI_OS_IMG_URL`** auf die aktuelle `.img.xz`-URL gesetzt werden (der Workflow übergibt sie an Docker).
+**Hinweis:** Variable **`RPI_OS_IMG_URL`** (Actions → Variables) setzen, falls der Standard-Download zu Raspberry Pi OS veraltet ist.

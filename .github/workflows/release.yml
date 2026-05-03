@@ -1,0 +1,175 @@
+# Full versioned release: Node SD image (.xz) + Central desktop apps (Windows / Linux / macOS).
+# Trigger: push tag v* (e.g. v1.0.2). Creates/updates the GitHub Release for that tag with all assets.
+
+name: Release (Node SD + Central)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  VOLTWISE_IMAGE_CACHE: ${{ github.workspace }}/.cache/voltwise-image-cache
+
+jobs:
+  sd-image:
+    name: Node — Raspberry Pi SD image
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      RPI_OS_IMG_URL: ${{ vars.RPI_OS_IMG_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.VOLTWISE_IMAGE_CACHE }}
+          key: raspios-arm64-${{ runner.os }}-v2-${{ hashFiles('tools/image-build/docker-build-inner.sh') }}
+          restore-keys: |
+            raspios-arm64-${{ runner.os }}-v2-
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xz-utils curl wget fdisk dosfstools coreutils util-linux file
+
+      - name: Build SD image
+        env:
+          SOURCE_DIR: ${{ github.workspace }}
+          OUTPUT_DIR: ${{ github.workspace }}/dist
+          CACHE_DIR: ${{ env.VOLTWISE_IMAGE_CACHE }}
+          COMPRESS: "1"
+        run: |
+          mkdir -p dist "$VOLTWISE_IMAGE_CACHE"
+          sudo chmod +x tools/image-build/docker-build-inner.sh
+          sudo -E bash tools/image-build/docker-build-inner.sh
+
+      - run: ls -lah dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voltwise-node-sd-image
+          path: dist/*.xz
+          if-no-files-found: error
+          retention-days: 30
+
+  central:
+    name: Central — ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies & icons
+        run: |
+          cd central-dashboard
+          pip install -r requirements.txt
+          cd ..
+          pip install Pillow
+          python generate_icons.py
+
+      - name: Build Windows
+        if: runner.os == 'Windows'
+        run: |
+          cd central-dashboard
+          pyinstaller --name "VoltWise-Windows" --add-data "templates;templates" --add-data "static;static" --add-data "logo.png;." --icon "icon.ico" --windowed --onefile app.py
+
+      - name: Build Linux
+        if: runner.os == 'Linux'
+        run: |
+          cd central-dashboard
+          pyinstaller --name "VoltWise-Linux" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --windowed --onefile app.py
+
+      - name: Build macOS
+        if: runner.os == 'macOS'
+        run: |
+          cd central-dashboard
+          pyinstaller --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --icon "icon.icns" --windowed --noconsole app.py
+          brew install create-dmg
+          rm -f dist/VoltWise.dmg || true
+          create-dmg \
+            --volname "VoltWise Installer" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --app-drop-link 600 185 \
+            "dist/VoltWise.dmg" \
+            "dist/VoltWise.app"
+
+      - name: Stage artifact
+        shell: bash
+        run: |
+          mkdir -p staging
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            mv central-dashboard/dist/VoltWise-Windows.exe staging/
+          elif [ "${{ runner.os }}" == "macOS" ]; then
+            mv central-dashboard/dist/VoltWise.dmg staging/
+          else
+            mv central-dashboard/dist/VoltWise-Linux staging/
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: central-${{ runner.os }}
+          path: staging/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish GitHub Release
+    needs: [sd-image, central]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: voltwise-node-sd-image
+          path: dl/sd
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: central-Windows
+          path: dl/win
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: central-Linux
+          path: dl/linux
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: central-macOS
+          path: dl/mac
+
+      - name: Prepare release assets (stable filenames)
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          SD=$(ls dl/sd/*.xz | head -1)
+          cp "$SD" "release/VoltWise-Node-RaspberryPi-arm64-bookworm-lite.img.xz"
+          cp dl/win/VoltWise-Windows.exe "release/VoltWise-Central-Windows-x86_64.exe"
+          cp dl/linux/VoltWise-Linux "release/VoltWise-Central-Linux-x86_64"
+          chmod +x "release/VoltWise-Central-Linux-x86_64"
+          cp dl/mac/VoltWise.dmg "release/VoltWise-Central-macOS.dmg"
+          ls -lah release/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

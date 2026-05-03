@@ -1,18 +1,13 @@
-# Builds the flashable Raspberry Pi OS image (losetup on the Ubuntu runner — no Docker).
-# Publishes:
-#   - GitHub Actions artifact: voltwise-node-sd-image (*.xz)
-#   - On push to tag v*: attaches *.xz to a Release (creates release if missing)
+# Builds only the Node SD image (artifact). Does not attach to a Release.
+# For a full release (SD + Central for Windows/Linux/macOS), push tag v* — see workflow "Release (Node SD + Central)".
 
 name: Build SD image
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   VOLTWISE_IMAGE_CACHE: ${{ github.workspace }}/.cache/voltwise-image-cache
@@ -63,12 +58,3 @@ jobs:
           path: dist/*.xz
           if-no-files-found: error
           retention-days: 21
-
-      - name: Attach to GitHub Release (tags v* only)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*.xz
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
