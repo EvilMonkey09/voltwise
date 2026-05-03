@@ -126,6 +126,11 @@ NET_SERVICE_NAME="voltwise-network.service"
 
 echo -e "${YELLOW}Creating systemd unit ${SERVICE_NAME}...${NC}"
 
+case "${VOLTWISE_SIMULATION:-}" in
+  1|true|TRUE|yes|YES) VOLTWISE_SIM_EXPORT='Environment=VOLTWISE_SIMULATION=1' ;;
+  *) VOLTWISE_SIM_EXPORT="" ;;
+esac
+
 cat <<EOF > "$SERVICE_NAME"
 [Unit]
 Description=VoltWise Node
@@ -136,6 +141,7 @@ User=${INSTALL_USER}
 Group=${INSTALL_GROUP}
 WorkingDirectory=${SCRIPT_DIR}
 Environment="PATH=${SCRIPT_DIR}/venv/bin"
+${VOLTWISE_SIM_EXPORT}
 ExecStart=${SCRIPT_DIR}/venv/bin/python3 app.py
 Restart=always
 RestartSec=5

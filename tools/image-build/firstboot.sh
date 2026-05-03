@@ -45,6 +45,12 @@ chmod +x "$INSTALL_DIR/install.sh"
 
 log "Installing VoltWise Node (GPIO UART → SERIAL_PORT=${VOLTWISE_SERIAL_PORT:-/dev/serial0}) …"
 
+# Empty marker file on boot partition → demo/test mode (no PZEM; synthetic data). See docker-build-inner.sh VOLTWISE_DEMO_IMAGE.
+if [[ -f /boot/firmware/voltwise-demo ]] || [[ -f /boot/voltwise-demo ]]; then
+  export VOLTWISE_SIMULATION=1
+  log "voltwise-demo marker found — simulation mode (no sensor hardware)."
+fi
+
 export NONINTERACTIVE=1
 export SERIAL_PORT="${VOLTWISE_SERIAL_PORT:-/dev/serial0}"
 export SENSOR_ADDRESSES="${VOLTWISE_SENSOR_ADDRESSES:-1,2,3}"

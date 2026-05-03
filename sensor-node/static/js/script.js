@@ -22,6 +22,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       updateDashboard(data);
       updateLiveCharts(data);
+
+      const demoBanner = document.getElementById("demo-banner");
+      if (demoBanner) {
+        demoBanner.hidden = !data.simulation;
+      }
       
       statusEl.textContent = "Connected";
       statusEl.style.color = "green";

@@ -42,7 +42,10 @@ def background_poller():
             if len(config.SENSOR_ADDRESSES) == 3:
                 # Helper to get currentsafely
                 def get_i(addr):
-                    return data.get(addr, {}).get('current', 0.0)
+                    d = data.get(addr)
+                    if not d:
+                        return 0.0
+                    return d.get("current", 0.0)
                 
                 i1 = get_i(config.SENSOR_ADDRESSES[0])
                 i2 = get_i(config.SENSOR_ADDRESSES[1])
@@ -54,7 +57,8 @@ def background_poller():
                 "timestamp": timestamp,
                 "sensors": data,
                 "neutral_current": neutral_i,
-                "event_id": current_event_id
+                "event_id": current_event_id,
+                "simulation": pzem.simulation_mode,
             }
             
             # Log to DB

@@ -5,6 +5,11 @@ name: Build SD image
 
 on:
   workflow_dispatch:
+    inputs:
+      demo_image:
+        description: "Demo-Modus — Testdaten ohne PZEM (Marker voltwise-demo auf der Boot-Partition)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -43,6 +48,7 @@ jobs:
           OUTPUT_DIR: ${{ github.workspace }}/dist
           CACHE_DIR: ${{ env.VOLTWISE_IMAGE_CACHE }}
           COMPRESS: "1"
+          VOLTWISE_DEMO_IMAGE: ${{ inputs.demo_image && '1' || '' }}
         run: |
           mkdir -p dist "$VOLTWISE_IMAGE_CACHE"
           sudo chmod +x tools/image-build/docker-build-inner.sh
@@ -54,7 +60,7 @@ jobs:
       - name: Upload artifact (.xz — flash this with Raspberry Pi Imager)
         uses: actions/upload-artifact@v4
         with:
-          name: voltwise-node-sd-image
+          name: ${{ inputs.demo_image && 'voltwise-node-demo-sd-image' || 'voltwise-node-sd-image' }}
           path: dist/*.xz
           if-no-files-found: error
           retention-days: 21

@@ -27,6 +27,7 @@ echo "Cache volume: $CACHE_VOL"
 docker run --rm --privileged \
   -e "COMPRESS=${COMPRESS:-1}" \
   -e "RPI_OS_IMG_URL=${RPI_OS_IMG_URL:-}" \
+  -e "VOLTWISE_DEMO_IMAGE=${VOLTWISE_DEMO_IMAGE:-}" \
   -v "$ROOT:/src:ro" \
   -v "$ROOT/dist:/out" \
   -v "$CACHE_VOL:/cache" \

@@ -1,15 +1,25 @@
+import math
 import minimalmodbus
 import serial
-import random
 import time
 import config
+
 
 class PZEMHandler:
     def __init__(self, port, addresses):
         self.port = port
         self.addresses = addresses
         self.instrument = None
-        self.simulation_mode = False
+        self.simulation_mode = bool(getattr(config, "SIMULATION_MODE", False))
+        self._sim_energy_wh = {}
+        self._sim_last_tick = time.time()
+        self._sim_t0 = time.time()
+
+        if self.simulation_mode:
+            print("VoltWise: SIMULATION MODE — synthetic measurements (no PZEM hardware).")
+            for a in addresses:
+                self._sim_energy_wh[a] = 0.0
+            return
 
         try:
             # Setup minimalmodbus instrument
@@ -31,6 +41,9 @@ class PZEMHandler:
             print(f"Error opening serial port {self.port}: {e}")
             print("Switching to SIMULATION MODE")
             self.simulation_mode = True
+            self._sim_energy_wh = {a: 0.0 for a in self.addresses}
+            self._sim_last_tick = time.time()
+            self._sim_t0 = time.time()
 
     def read_all(self):
         """
@@ -38,81 +51,44 @@ class PZEMHandler:
         Returns a dictionary keyed by address.
         """
         data = {}
+        if self.simulation_mode:
+            now = time.time()
+            dt = max(0.0, min(5.0, now - self._sim_last_tick))
+            self._sim_last_tick = now
+            for address in self.addresses:
+                data[address] = self._simulate_data(address, dt)
+            return data
+
         for address in self.addresses:
-            if self.simulation_mode:
-                data[address] = self._simulate_data(address)
-            else:
-                try:
-                    self.instrument.address = address
-                    # Read Input Registers (Function Code 0x04)
-                    # Register 0x0000: Voltage (0.1V)
-                    # Register 0x0001: Current Low (0.001A)
-                    # Register 0x0002: Current High 
-                    # ... and so on.
-                    # minimalmodbus read_registers reads N registers starting from addr
-                    
-                    # Reading 10 registers starting from 0x0000
-                    # 0: Voltage
-                    # 1-2: Current (32bit)
-                    # 3-4: Power (32bit)
-                    # 5-6: Energy (32bit)
-                    # 7: Frequency
-                    # 8: Power Factor
-                    # 9: Alarm Status
-                    
-                    # Note: read_registers returns list of integers
-                    # We can also use read_float/long but bulk read is more efficient
-                    
-                    # Using read_registers to get raw values then parse
-                    
-                    # Read 10 registers starting from 0x0000
-                    # 0: Voltage (0.1V)
-                    # 1: Current Low (0.001A)
-                    # 2: Current High
-                    # 3: Power Low (0.1W)
-                    # 4: Power High
-                    # 5: Energy Low (1Wh)
-                    # 6: Energy High
-                    # 7: Frequency (0.1Hz)
-                    # 8: PF (0.01)
-                    # 9: Alarm
-                    
-                    values = self.instrument.read_registers(0x0000, 10, functioncode=4)
-                    
-                    # Parse values (Little Endian Word Order for 32-bit values per manual)
-                    voltage = values[0] * 0.1
-                    
-                    # Current: High<<16 | Low
-                    current_low = values[1]
-                    current_high = values[2]
-                    current = ((current_high << 16) | current_low) * 0.001
-                    
-                    # Power: High<<16 | Low
-                    power_low = values[3]
-                    power_high = values[4]
-                    power = ((power_high << 16) | power_low) * 0.1
-                    
-                    # Energy: High<<16 | Low
-                    energy_low = values[5]
-                    energy_high = values[6]
-                    energy = ((energy_high << 16) | energy_low)
-                    
-                    frequency = values[7] * 0.1
-                    pf = values[8] * 0.01
-                    
-                    data[address] = {
-                        "voltage": round(voltage, 1),
-                        "current": round(current, 3),
-                        "power": round(power, 1),
-                        "energy": energy, # Wh
-                        "frequency": round(frequency, 1),
-                        "pf": round(pf, 2)
-                    }
-                    
-                except Exception as e:
-                    print(f"Error reading sensor {address}: {e}")
-                    # Return None or error state?
-                    data[address] = None
+            try:
+                self.instrument.address = address
+                values = self.instrument.read_registers(0x0000, 10, functioncode=4)
+
+                voltage = values[0] * 0.1
+                current_low = values[1]
+                current_high = values[2]
+                current = ((current_high << 16) | current_low) * 0.001
+                power_low = values[3]
+                power_high = values[4]
+                power = ((power_high << 16) | power_low) * 0.1
+                energy_low = values[5]
+                energy_high = values[6]
+                energy = ((energy_high << 16) | energy_low)
+                frequency = values[7] * 0.1
+                pf = values[8] * 0.01
+
+                data[address] = {
+                    "voltage": round(voltage, 1),
+                    "current": round(current, 3),
+                    "power": round(power, 1),
+                    "energy": energy,
+                    "frequency": round(frequency, 1),
+                    "pf": round(pf, 2),
+                }
+
+            except Exception as e:
+                print(f"Error reading sensor {address}: {e}")
+                data[address] = None
         return data
 
     def reset_energy(self, address):
@@ -122,6 +98,7 @@ class PZEMHandler:
         """
         if self.simulation_mode:
             print(f"[SIM] Energy reset for address {address}")
+            self._sim_energy_wh[address] = 0.0
             return True
             
         try:
@@ -147,19 +124,29 @@ class PZEMHandler:
             print(f"Error resetting energy for {address}: {e}")
             return False
 
-    def _simulate_data(self, address):
-        """Generates random data for testing."""
-        # Make values slightly different based on address to distinguish phases
-        base_v = 230
-        base_i = 2 * address # Phase 1=2A, Phase 2=4A...
-        
+    def _simulate_data(self, address, dt):
+        """Smooth synthetic values + cumulative energy (Wh) for UI / DB testing."""
+        now = time.time()
+        t = now - self._sim_t0
+        phase = (address - 1) * (2 * math.pi / max(len(self.addresses), 1))
+
+        voltage = 230.0 + 4.0 * math.sin(t / 42.0 + phase) + 1.5 * math.sin(t / 17.3)
+        current = (1.2 + 0.6 * address) * (0.85 + 0.15 * math.sin(t / 55.0 + phase * 1.1))
+        current = max(0.05, current)
+        pf = min(0.99, max(0.82, 0.93 + 0.04 * math.sin(t / 31.0)))
+        power = voltage * current * pf
+        hz = 50.0 + 0.06 * math.sin(t / 88.0)
+
+        wh = self._sim_energy_wh.get(address, 0.0) + (power * dt / 3600.0)
+        self._sim_energy_wh[address] = wh
+
         return {
-            "voltage": round(base_v + random.uniform(-5, 5), 1),
-            "current": round(base_i + random.uniform(-0.5, 0.5), 3),
-            "power": round((base_v * base_i) + random.uniform(-10, 10), 1),
-            "energy": int(time.time() // 60), # Just some increasing number
-            "frequency": round(50 + random.uniform(-0.1, 0.1), 1),
-            "pf": round(0.95 + random.uniform(-0.05, 0.0), 2)
+            "voltage": round(voltage, 1),
+            "current": round(current, 3),
+            "power": round(power, 1),
+            "energy": round(wh, 2),
+            "frequency": round(hz, 1),
+            "pf": round(pf, 2),
         }
 
     def _calculate_crc(self, data):

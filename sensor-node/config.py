@@ -1,4 +1,13 @@
 # Configuration for VoltWise
+import os
+
+
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
+
+
+# When True (or env VOLTWISE_SIMULATION=1), no Modbus reads — synthetic data for demos / bench testing.
+SIMULATION_MODE = _env_truthy("VOLTWISE_SIMULATION")
 
 # List of Modbus addresses for the PZEM-004T modules.
 # Example: [1] for single phase, [1, 2, 3] for three-phase.

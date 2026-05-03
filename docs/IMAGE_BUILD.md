@@ -46,6 +46,20 @@ Ohne Kompression (schneller):
 COMPRESS=0 ./tools/image-build/build-image.sh
 ```
 
+### Demo-Image (ohne PZEM — nur zum Ausprobieren von Setup & UI)
+
+Beim ersten Boot werden dann **synthetische Messwerte** erzeugt (Dashboard, Charts, SQLite wie im Normalbetrieb):
+
+```bash
+VOLTWISE_DEMO_IMAGE=1 ./tools/image-build/build-image.sh
+```
+
+Ausgabe z. B. `dist/voltwise-node-demo-bookworm-arm64-lite.img.xz`. Auf der Boot-Partition liegt eine leere Datei **`voltwise-demo`**; das aktiviert den Demo-Modus. Für echtes Messen: Image **ohne** dieses Flag neu bauen bzw. Marker-Datei auf der SD entfernen und Dienst neu einrichten.
+
+**macOS / Docker Desktop:** Der lokale Image-Build scheitert oft an `losetup` / `loop0p1` — stattdessen **GitHub Actions** → **Build SD image** → **Run workflow** → **Demo-Modus** anhaken; das Artifact ist die Demo-`.xz`.
+
+Ohne Image-Neuauftrag kannst du auf einem installierten Node auch setzen: **`VOLTWISE_SIMULATION=1`** in der `voltwise`-systemd-Unit (oder export vor `python app.py`).
+
 ## SD-Karte schreiben
 
 1. **Raspberry Pi Imager** → „OS auswählen“ → **Benutzerdefiniert** / eigene Image-Datei → `dist/voltwise-node-bookworm-arm64-lite.img` (oder `.img.xz` nach lokalem Entpacken).

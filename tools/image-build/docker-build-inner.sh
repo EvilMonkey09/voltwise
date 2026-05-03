@@ -82,6 +82,14 @@ if [[ -d "$ROOT_MNT/boot/firmware" ]]; then
   cp -f "$CACHE/voltwise-sensor-node.tar.gz" "$ROOT_MNT/boot/firmware/voltwise-sensor-node.tar.gz"
 fi
 
+if [[ "${VOLTWISE_DEMO_IMAGE:-}" == "1" ]]; then
+  echo "==> Demo image: voltwise-demo marker on boot (simulation — no PZEM required) …"
+  : >"$BOOT_MNT/voltwise-demo"
+  if [[ -d "$ROOT_MNT/boot/firmware" ]]; then
+    : >"$ROOT_MNT/boot/firmware/voltwise-demo"
+  fi
+fi
+
 echo "==> UART for GPIO jumper-wire PZEM (/dev/serial0) …"
 if [[ -f "$BOOT_MNT/config.txt" ]] && ! grep -q '^enable_uart=1' "$BOOT_MNT/config.txt"; then
   printf '\n# VoltWise Node — UART for PZEM Modbus (GPIO 14/15)\nenable_uart=1\n' >> "$BOOT_MNT/config.txt"
@@ -105,7 +113,11 @@ losetup -d "$LOOP"
 LOOP=""
 trap - EXIT
 
-OUT_IMG="$OUT/voltwise-node-bookworm-arm64-lite.img"
+OUT_BASE="voltwise-node-bookworm-arm64-lite"
+if [[ "${VOLTWISE_DEMO_IMAGE:-}" == "1" ]]; then
+  OUT_BASE="voltwise-node-demo-bookworm-arm64-lite"
+fi
+OUT_IMG="$OUT/$OUT_BASE.img"
 cp -f "$RAW_IMG" "$OUT_IMG"
 echo "==> Done: $OUT_IMG ($(du -h "$OUT_IMG" | cut -f1))"
 
