@@ -56,7 +56,7 @@ VOLTWISE_DEMO_IMAGE=1 ./tools/image-build/build-image.sh
 
 Ausgabe z. B. `dist/voltwise-node-demo-bookworm-arm64-lite.img.xz`. Auf der Boot-Partition liegt eine leere Datei **`voltwise-demo`**; das aktiviert den Demo-Modus. Für echtes Messen: Image **ohne** dieses Flag neu bauen bzw. Marker-Datei auf der SD entfernen und Dienst neu einrichten.
 
-**macOS / Docker Desktop:** Der lokale Image-Build scheitert oft an `losetup` / `loop0p1` — stattdessen **GitHub Actions** → **Build SD image** → **Run workflow** → **Demo-Modus** anhaken; das Artifact ist die Demo-`.xz`.
+**macOS / Docker Desktop:** Der lokale Image-Build scheitert oft an `losetup` / `loop0p1` — stattdessen **GitHub Actions** → **Build SD image** → **Run workflow** → optional Demo. Demo-Artefakte sind nur unter **Actions** sichtbar, **laufen nach wenigen Tagen ab** und erscheinen **nicht** unter **Releases** — für den normalen Einsatz immer die **Release-Assets** (`VoltWise-Node-RaspberryPi-…`) verwenden.
 
 Ohne Image-Neuauftrag kannst du auf einem installierten Node auch setzen: **`VOLTWISE_SIMULATION=1`** in der `voltwise`-systemd-Unit (oder export vor `python app.py`).
 
@@ -84,7 +84,7 @@ Weiterhin möglich: Repo klonen und `sudo ./install.sh` auf einem normalen Raspb
 
 ## GitHub Actions (CI)
 
-- **Nur SD-Image:** Workflow **„Build SD image“** (`.github/workflows/build-sd-image.yml`) — manuell unter **Actions** → **Run workflow**. Ergebnis: **Artifact** mit der **`.xz`**.
+- **Nur SD-Image (manuell):** Workflow **„Build SD image“** — **Actions** → **Run workflow**. Ergebnis: **Artifact** (kein Release). **Demo-Option** → nur Test-Image, **3 Tage** Retention, Dateiname warnt explizit; **kein Ersatz** für die Release-Datei.
 - **Komplett-Release (empfohlen):** Workflow **„Release (Node SD + Central)“** (`.github/workflows/release.yml`) läuft beim Push eines Tags **`v*`** (z. B. `v1.0.2`). Das **GitHub Release** enthält dann:
   - **Node:** `VoltWise-Node-RaspberryPi-arm64-bookworm-lite.img.xz` (Raspberry Pi Imager)
   - **Central:** Windows-EXE, Linux-Binary, macOS-DMG

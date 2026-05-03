@@ -1,5 +1,6 @@
 # Builds only the Node SD image (artifact). Does not attach to a Release.
-# For a full release (SD + Central for Windows/Linux/macOS), push tag v* — see workflow "Release (Node SD + Central)".
+# Production SD images for end users: GitHub Releases only (workflow "Release (Node SD + Central)" on tag v*).
+# Demo builds here are short-lived testing artifacts — never published as release assets.
 
 name: Build SD image
 
@@ -7,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       demo_image:
-        description: "Demo-Modus — Testdaten ohne PZEM (Marker voltwise-demo auf der Boot-Partition)"
+        description: "Nur für Tests — synthetische Daten, kein PZEM (nicht unter Releases; Artifact läuft schnell ab)"
         type: boolean
         default: false
 
@@ -57,10 +58,20 @@ jobs:
       - name: List outputs
         run: ls -lah dist/
 
-      - name: Upload artifact (.xz — flash this with Raspberry Pi Imager)
+      - name: Upload artifact (production SD image)
+        if: ${{ inputs.demo_image == false }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.demo_image && 'voltwise-node-demo-sd-image' || 'voltwise-node-sd-image' }}
+          name: voltwise-node-sd-image
           path: dist/*.xz
           if-no-files-found: error
           retention-days: 21
+
+      - name: Upload artifact (DEMO — testing only, not a release download)
+        if: ${{ inputs.demo_image == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: voltwise-node-DEMO-testing-only-not-for-users-sd-image
+          path: dist/*.xz
+          if-no-files-found: error
+          retention-days: 3

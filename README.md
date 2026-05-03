@@ -13,7 +13,7 @@ The software that runs on the Raspberry Pi.
 
 **[>> Go to Sensor Node Documentation](./sensor-node/SETUP_GUIDE.md)**
 
-**Fertiges SD-Image (nur flashen):** Vorgebautes Raspberry-Pi-OS-Image mit automatischer Erstinstallation und **GPIO-UART / `/dev/serial0`** für PZEM per Jumperkabel — siehe [docs/IMAGE_BUILD.md](docs/IMAGE_BUILD.md). Lokal: `tools/image-build/build-image.sh` (Docker). Auf GitHub: Workflow **„Build SD image“** baut dieselbe `.img.xz` und legt sie als Artifact / bei Tag `v*` am Release ab.
+**Fertiges SD-Image (nur flashen):** Offizielle Builds für echtes Messen gibt es unter **[Releases](https://github.com/EvilMonkey09/voltwise/releases)** (`VoltWise-Node-RaspberryPi-…`, aus dem Release-Workflow mit Tag `v*`). Details: [docs/IMAGE_BUILD.md](docs/IMAGE_BUILD.md). Lokal bauen: `tools/image-build/build-image.sh`. Der manuelle Workflow **„Build SD image“** legt nur **Actions-Artefakte** ab (kein Release). **Demo-/Test-Images** (ohne PZEM, synthetische Daten) sind dort nur bei aktivierter Demo-Option, kurz gültig und **nicht** als stabiler Download gedacht.
 
 ## 2. [Central Dashboard](./central-dashboard)
 
