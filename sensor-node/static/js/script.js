@@ -39,35 +39,62 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateDashboard(data) {
-    // Update per-sensor cards
-    for (const [address, values] of Object.entries(data.sensors)) {
-      if (values) {
-        setVal(`voltage-${address}`, values.voltage);
-        setVal(`current-${address}`, values.current);
-        setVal(`power-${address}`, values.power);
-        setVal(`energy-${address}`, values.energy);
-        setVal(`frequency-${address}`, values.frequency);
-        setVal(`pf-${address}`, values.pf);
+    const sensors = data.sensors || {};
+    for (const [address, values] of Object.entries(sensors)) {
+      const idBase = (k) => `${k}-${address}`;
+      if (!values) {
+        ["voltage", "current", "power", "energy", "frequency", "pf"].forEach((k) =>
+          setVal(idBase(k), "—")
+        );
+        continue;
       }
+      setVal(idBase("voltage"), fmt(values.voltage, 1));
+      setVal(idBase("current"), fmt(values.current, 3));
+      setVal(idBase("power"), fmt(values.power, 1));
+      setVal(idBase("energy"), fmt(values.energy, 2));
+      setVal(idBase("frequency"), fmt(values.frequency, 1));
+      setVal(idBase("pf"), fmt(values.pf, 2));
     }
 
-    // Update Sum/Neutral
-    if (data.neutral_current !== undefined) {
-      setVal("neutral-current", data.neutral_current);
-
-      // Calculate Total Power
-      let totalP = 0;
-      for (const s of Object.values(data.sensors)) {
-        if (s) totalP += s.power;
-      }
-      setVal("total-power", totalP.toFixed(1));
+    let totalP = 0;
+    for (const s of Object.values(sensors)) {
+      if (s && typeof s.power === "number") totalP += s.power;
     }
+    setVal("total-power", totalP.toFixed(1));
+
+    const nEl = document.getElementById("neutral-current");
+    if (nEl && data.neutral_current !== undefined && data.neutral_current !== null) {
+      nEl.textContent = Number(data.neutral_current).toFixed(3);
+    }
+  }
+
+  function fmt(v, decimals) {
+    if (v === undefined || v === null || Number.isNaN(Number(v))) return "—";
+    return Number(v).toFixed(decimals);
   }
 
   function setVal(id, val) {
     const el = document.getElementById(id);
     if (el) el.textContent = val;
   }
+
+  document.querySelector(".live-table-wrap")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".reset-btn");
+    if (!btn) return;
+    const address = btn.getAttribute("data-address");
+    if (!address || !confirm("Energy counter for this sensor reset?")) return;
+    try {
+      const res = await fetch("/api/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: Number(address) }),
+      });
+      const j = await res.json();
+      if (!j.success) alert(j.error || "Reset failed");
+    } catch (err) {
+      alert("Reset failed");
+    }
+  });
 
   // --- Live Charts ---
   async function fetchInitialHistory() {

@@ -11,7 +11,7 @@
     <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
   </head>
   <body>
-    <div class="container">
+    <div class="container container-wide">
       <header>
         <div class="brand">
           <strong>VoltWise</strong>
@@ -27,106 +27,103 @@
         <strong>Demo-Modus:</strong> Testdaten ohne PZEM — Serielle Hardware wird nicht benötigt.
       </p>
 
-      <!-- Live Data Section (Current Values) -->
       <section class="live-data">
-        <h2>Live Status</h2>
-        <div class="dashboard-grid">
-            {% for address in sensors %}
-            <div class="card phase-card" id="card-{{ address }}">
-              <div class="card-header">
-                <h3>Phase {{ loop.index }}</h3>
-                <button
-                  class="btn-icon reset-btn"
-                  data-address="{{ address }}"
-                  title="Reset Energy"
-                >
-                  ↺
-                </button>
-              </div>
-              <div class="card-body">
-                <div class="metric">
-                  <span class="label">Voltage</span>
-                  <span class="value" id="voltage-{{ address }}">--</span>
-                  <span class="unit">V</span>
-                </div>
-                <div class="metric">
-                  <span class="label">Current</span>
-                  <span class="value" id="current-{{ address }}">--</span>
-                  <span class="unit">A</span>
-                </div>
-                <div class="metric">
-                  <span class="label">Power</span>
-                  <span class="value" id="power-{{ address }}">--</span>
-                  <span class="unit">W</span>
-                </div>
-                <div class="metric">
-                  <span class="label">Energy</span>
-                  <span class="value" id="energy-{{ address }}">--</span>
-                  <span class="unit">Wh</span>
-                </div>
-                <div class="metric-row">
-                  <div class="small-metric">
-                    <span class="label">Hz</span>
-                    <span class="value" id="frequency-{{ address }}">--</span>
-                  </div>
-                  <div class="small-metric">
-                    <span class="label">PF</span>
-                    <span class="value" id="pf-{{ address }}">--</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            {% endfor %}
-    
-            <!-- Summary Card (Only if 3 phases) -->
-            {% if sensors|length == 3 %}
-            <div class="card summary-card">
-              <div class="card-header">
-                <h3>Total / Neutral</h3>
-              </div>
-              <div class="card-body">
-                <div class="metric">
-                  <span class="label">Total Power</span>
-                  <span class="value" id="total-power">--</span>
-                  <span class="unit">W</span>
-                </div>
-                <div class="metric highlight">
-                  <span class="label">Neutral Current</span>
-                  <span class="value" id="neutral-current">--</span>
-                  <span class="unit">A</span>
-                </div>
-              </div>
-            </div>
-            {% endif %}
+        <h2>Live measurements</h2>
+        <p class="section-lead">
+          Alle Kanäle mit Spannung, Strom, Leistung, Energie, Frequenz und Leistungsfaktor.
+        </p>
+
+        <div class="table-responsive live-table-wrap">
+          <table class="live-table">
+            <thead>
+              <tr>
+                <th scope="col">Sensor</th>
+                <th scope="col" class="num-col">U<br /><span class="th-unit">V</span></th>
+                <th scope="col" class="num-col">I<br /><span class="th-unit">A</span></th>
+                <th scope="col" class="num-col">P<br /><span class="th-unit">W</span></th>
+                <th scope="col" class="num-col">E<br /><span class="th-unit">Wh</span></th>
+                <th scope="col" class="num-col">f<br /><span class="th-unit">Hz</span></th>
+                <th scope="col" class="num-col">PF</th>
+                <th scope="col" class="action-col">Energy reset</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for address in sensors %}
+              <tr id="row-{{ address }}">
+                <th scope="row" class="sensor-label">
+                  <span class="sensor-phase">L{{ loop.index }}</span>
+                  <span class="sensor-addr">addr&nbsp;{{ address }}</span>
+                </th>
+                <td class="num" id="voltage-{{ address }}">—</td>
+                <td class="num" id="current-{{ address }}">—</td>
+                <td class="num num-strong" id="power-{{ address }}">—</td>
+                <td class="num" id="energy-{{ address }}">—</td>
+                <td class="num" id="frequency-{{ address }}">—</td>
+                <td class="num" id="pf-{{ address }}">—</td>
+                <td class="action-cell">
+                  <button
+                    type="button"
+                    class="btn-icon reset-btn"
+                    data-address="{{ address }}"
+                    title="Reset energy counter"
+                    aria-label="Reset energy"
+                  >
+                    ↺
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="live-summary-bar">
+          <div class="summary-item">
+            <span class="summary-label">Σ Active power</span>
+            <span class="summary-value" id="total-power">—</span>
+            <span class="summary-unit">W</span>
+          </div>
+          {% if sensors|length == 3 %}
+          <div class="summary-item summary-neutral">
+            <span class="summary-label">Neutral current (calc.)</span>
+            <span class="summary-value" id="neutral-current">—</span>
+            <span class="summary-unit">A</span>
+          </div>
+          {% endif %}
         </div>
       </section>
 
-      <!-- Live Charts Section -->
       <section class="live-charts">
-        <h2>Live History</h2>
-        <div class="dashboard-grid charts-grid">
-            <div class="card chart-card">
-                <h3>Voltage</h3>
-                <canvas id="chart-live-voltage"></canvas>
+        <h2>Live trends</h2>
+        <p class="section-lead">Letzte Messpunkte — eine Linie pro Phase (und Neutral beim Strom).</p>
+        <div class="dashboard-grid charts-grid charts-grid-wide">
+          <div class="card chart-card">
+            <h3>Voltage</h3>
+            <div class="chart-canvas-wrap">
+              <canvas id="chart-live-voltage"></canvas>
             </div>
-            <div class="card chart-card">
-                <h3>Current</h3>
-                <canvas id="chart-live-current"></canvas>
+          </div>
+          <div class="card chart-card">
+            <h3>Current</h3>
+            <div class="chart-canvas-wrap">
+              <canvas id="chart-live-current"></canvas>
             </div>
-            <div class="card chart-card">
-                <h3>Power</h3>
-                <canvas id="chart-live-power"></canvas>
+          </div>
+          <div class="card chart-card chart-card-span">
+            <h3>Power</h3>
+            <div class="chart-canvas-wrap chart-canvas-tall">
+              <canvas id="chart-live-power"></canvas>
             </div>
+          </div>
         </div>
       </section>
- 
-      <!-- Event Management Section -->
+
       <section class="history-section">
         <div class="section-header">
-            <h2>Event Management</h2>
-            <button id="btn-create-event" class="btn primary">+ Create New Event</button>
+          <h2>Event Management</h2>
+          <button id="btn-create-event" class="btn primary">+ Create New Event</button>
         </div>
-        
+
         <div class="table-responsive">
           <table id="events-table">
             <thead>
@@ -138,9 +135,7 @@
                 <th>Actions</th>
               </tr>
             </thead>
-            <tbody>
-              <!-- Populated by JS -->
-            </tbody>
+            <tbody></tbody>
           </table>
         </div>
       </section>
