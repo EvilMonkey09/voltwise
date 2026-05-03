@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runs inside Docker (Linux). Builds a flashable Raspberry Pi OS image with VoltWise Node embedded.
+# Builds a flashable Raspberry Pi OS image with VoltWise Node embedded (Docker or CI — Linux + root).
 set -euo pipefail
 
 SRC="${SOURCE_DIR:-/src}"
@@ -47,8 +47,13 @@ trap cleanup EXIT
 
 if [[ ! -f "$RAW_IMG" ]]; then
   if [[ ! -f "$XZ_PATH" ]]; then
-    echo "==> Downloading Raspberry Pi OS Lite (URL override: RPI_OS_IMG_URL) …"
-    wget -q --show-progress -O "$XZ_PATH" "$IMG_URL"
+    echo "==> Downloading Raspberry Pi OS Lite …"
+    echo "    URL: $IMG_URL"
+    if command -v curl >/dev/null 2>&1; then
+      curl -fSL --retry 3 --connect-timeout 30 -o "$XZ_PATH" "$IMG_URL"
+    else
+      wget -nv -O "$XZ_PATH" "$IMG_URL"
+    fi
   fi
   echo "==> Decompressing image …"
   xz -dkf "$XZ_PATH"

@@ -1,4 +1,4 @@
-# Builds the flashable Raspberry Pi OS image (Docker + privileged losetup).
+# Builds the flashable Raspberry Pi OS image (losetup on the Ubuntu runner — no Docker).
 # Publishes:
 #   - GitHub Actions artifact: voltwise-node-sd-image (*.xz)
 #   - On push to tag v*: attaches *.xz to a Release (creates release if missing)
@@ -23,7 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
-      # Repository Settings → Variables (optional): full URL to raspios_lite_arm64 .img.xz
       RPI_OS_IMG_URL: ${{ vars.RPI_OS_IMG_URL }}
 
     steps:
@@ -34,18 +33,25 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.VOLTWISE_IMAGE_CACHE }}
-          key: raspios-arm64-${{ runner.os }}-v1-${{ hashFiles('tools/image-build/docker-build-inner.sh', 'tools/image-build/Dockerfile') }}
+          key: raspios-arm64-${{ runner.os }}-v2-${{ hashFiles('tools/image-build/docker-build-inner.sh') }}
           restore-keys: |
-            raspios-arm64-${{ runner.os }}-v1-
+            raspios-arm64-${{ runner.os }}-v2-
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Optional: set repository variable RPI_OS_IMG_URL if Raspberry Pi changed their download path.
-      - name: Build SD image (privileged Docker)
+      - name: Install build dependencies
         run: |
-          chmod +x tools/image-build/build-image.sh
-          ./tools/image-build/build-image.sh
+          sudo apt-get update
+          sudo apt-get install -y xz-utils curl wget fdisk dosfstools coreutils util-linux file
+
+      - name: Build SD image (native losetup)
+        env:
+          SOURCE_DIR: ${{ github.workspace }}
+          OUTPUT_DIR: ${{ github.workspace }}/dist
+          CACHE_DIR: ${{ env.VOLTWISE_IMAGE_CACHE }}
+          COMPRESS: "1"
+        run: |
+          mkdir -p dist "$VOLTWISE_IMAGE_CACHE"
+          sudo chmod +x tools/image-build/docker-build-inner.sh
+          sudo -E bash tools/image-build/docker-build-inner.sh
 
       - name: List outputs
         run: ls -lah dist/

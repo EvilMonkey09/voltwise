@@ -75,6 +75,6 @@ Im Repository gibt es den Workflow **„Build SD image“** (`.github/workflows/
 - **Manuell:** GitHub → **Actions** → **Build SD image** → **Run workflow**.
 - **Automatisch beim Tag:** Tag im Format **`v*`** pushen (z. B. `v1.2.0`) → nach erfolgreichem Lauf liegt **`voltwise-node-bookworm-arm64-lite.img.xz`** als **Artifact** vor und wird an das **GitHub Release** zu diesem Tag angehängt.
 
-Der Workflow nutzt **Docker (privileged)** auf `ubuntu-latest` und denselben Build wie lokal. Nur die **`.xz`** wird hochgeladen (kleiner als das volle `.img`; zum Flashen mit Imager entpacken oder Imager wählt `.xz` direkt je nach Version).
+Der Workflow läuft **ohne Docker** direkt auf dem GitHub-**Ubuntu-Runner** (`sudo losetup` / `mount`). Lokal kannst du weiter **`tools/image-build/build-image.sh`** (Docker) oder dasselbe Skript **`docker-build-inner.sh`** mit gesetzten `SOURCE_DIR`/`OUTPUT_DIR`/`CACHE_DIR` ausführen. Hochgeladen wird nur die **`.xz`**.
 
 **Hinweis:** Der Download-Link zu Raspberry Pi OS in `docker-build-inner.sh` kann veralten. Im GitHub-Repository unter **Settings → Secrets and variables → Actions → Variables** kann **`RPI_OS_IMG_URL`** auf die aktuelle `.img.xz`-URL gesetzt werden (der Workflow übergibt sie an Docker).
