@@ -83,6 +83,122 @@
             return Math.floor(sec / 3600) + ' h ago';
         }
 
+        let livePollId = null;
+
+        function clearLivePoll() {
+            if (livePollId != null) {
+                clearInterval(livePollId);
+                livePollId = null;
+            }
+        }
+
+        function fmtVal(v, unit) {
+            if (v == null || v === '') return '—';
+            return String(v) + (unit || '');
+        }
+
+        function buildLiveContent(d) {
+            const root = document.createElement('div');
+            root.className = 'live-inner';
+            if (d.simulation) {
+                const sim = document.createElement('p');
+                sim.className = 'sim-banner';
+                sim.textContent =
+                    'Demo / simulation — synthetic readings, not live PZEM hardware.';
+                root.appendChild(sim);
+            }
+            const sensors = d.sensors || {};
+            const addrs = Object.keys(sensors)
+                .map((k) => Number(k))
+                .sort((a, b) => a - b);
+            const grid = document.createElement('div');
+            grid.className = 'phase-grid';
+            for (const addr of addrs) {
+                const s = sensors[addr];
+                const card = document.createElement('div');
+                card.className = 'phase-card';
+                const h = document.createElement('h4');
+                h.textContent = 'Sensor / Phase · Addr ' + addr;
+                card.appendChild(h);
+                if (!s) {
+                    const p = document.createElement('p');
+                    p.className = 'muted';
+                    p.textContent = 'No data';
+                    card.appendChild(p);
+                    grid.appendChild(card);
+                    continue;
+                }
+                const dl = document.createElement('dl');
+                dl.className = 'metric-dl';
+                const rows = [
+                    ['Voltage', fmtVal(s.voltage, ' V')],
+                    ['Current', fmtVal(s.current, ' A')],
+                    ['Power', fmtVal(s.power, ' W')],
+                    ['Energy', fmtVal(s.energy, ' Wh')],
+                    ['Frequency', fmtVal(s.frequency, ' Hz')],
+                    ['Power factor', fmtVal(s.pf, '')],
+                ];
+                rows.forEach(([label, val]) => {
+                    const row = document.createElement('div');
+                    const dt = document.createElement('dt');
+                    dt.textContent = label;
+                    const dd = document.createElement('dd');
+                    dd.textContent = val;
+                    row.appendChild(dt);
+                    row.appendChild(dd);
+                    dl.appendChild(row);
+                });
+                card.appendChild(dl);
+                grid.appendChild(card);
+            }
+            root.appendChild(grid);
+            if (
+                d.neutral_current != null &&
+                d.neutral_current !== '' &&
+                addrs.length === 3
+            ) {
+                const nr = document.createElement('div');
+                nr.className = 'neutral-row';
+                nr.innerHTML =
+                    '<span>Neutral current (calc.)</span><span>' +
+                    Number(d.neutral_current).toFixed(3) +
+                    ' A</span>';
+                root.appendChild(nr);
+            }
+            return root;
+        }
+
+        async function refreshLiveData() {
+            const cards = document.querySelectorAll('.card[data-node-ip]');
+            for (const card of cards) {
+                const ip = card.getAttribute('data-node-ip');
+                const liveEl = card.querySelector('.node-live');
+                if (!liveEl) continue;
+                const online =
+                    card.getAttribute('data-node-online') === '1';
+                if (!online) {
+                    liveEl.innerHTML =
+                        '<p class="live-offline">Node offline — no live data.</p>';
+                    continue;
+                }
+                try {
+                    const r = await fetch(
+                        '/api/proxy/' +
+                            encodeURIComponent(ip) +
+                            '/api/data',
+                        { cache: 'no-store' }
+                    );
+                    const j = await r.json();
+                    if (j.error) throw new Error(j.error);
+                    liveEl.innerHTML = '';
+                    liveEl.appendChild(buildLiveContent(j));
+                } catch (e) {
+                    liveEl.innerHTML =
+                        '<p class="live-error">Could not load readings ( network or node ).</p>';
+                }
+            }
+        }
+
         async function loadNodes() {
             const res = await fetch('/api/nodes');
             const nodes = await res.json();
@@ -143,12 +259,17 @@
         }
 
         function renderGrid(nodes) {
+            clearLivePoll();
             const grid = document.getElementById('grid');
             grid.innerHTML = '';
+            grid.classList.toggle('grid-multi', nodes.length > 1);
             nodes.forEach((node) => {
                 const title = node.node_label || node.hostname || node.ip;
+                const online = node.status === 'online';
                 const card = document.createElement('div');
                 card.className = 'card';
+                card.setAttribute('data-node-ip', node.ip);
+                card.setAttribute('data-node-online', online ? '1' : '0');
                 card.innerHTML = `
                     <div class="card-head">
                         <h3 class="card-title"></h3>
@@ -156,35 +277,24 @@
                     </div>
                     <p class="meta">IP ${node.ip}</p>
                     <p class="meta subtle">Last seen: <span class="seen"></span></p>
+                    <div class="node-live"><p class="muted live-loading-msg">Loading readings…</p></div>
                     <div class="card-actions">
                         <input type="text" class="label-input" placeholder="Display name" aria-label="Display name">
                         <button type="button" class="btn btn-ghost btn-sm save-label">Save</button>
-                        <button type="button" class="btn btn-primary btn-sm expand-btn">Open node</button>
-                    </div>
-                    <div class="iframe-wrap hidden"></div>`;
+                        <a class="btn btn-primary btn-sm" href="http://${node.ip}:25500/" target="_blank" rel="noopener">Full node UI</a>
+                    </div>`;
                 card.querySelector('.card-title').textContent = title;
                 card.querySelector('.seen').textContent = fmtSeen(node.last_seen);
                 const inp = card.querySelector('.label-input');
                 inp.value = node.node_label || '';
                 card.querySelector('.save-label').onclick = () =>
                     saveLabel(node.ip, inp.value.trim());
-                const iframeWrap = card.querySelector('.iframe-wrap');
-                const expandBtn = card.querySelector('.expand-btn');
-                expandBtn.onclick = () => {
-                    iframeWrap.classList.toggle('hidden');
-                    if (!iframeWrap.classList.contains('hidden')) {
-                        iframeWrap.innerHTML =
-                            '<iframe class="node-frame" src="http://' +
-                            node.ip +
-                            ':25500/" title="VoltWise Node"></iframe>';
-                        expandBtn.textContent = 'Close node';
-                    } else {
-                        iframeWrap.innerHTML = '';
-                        expandBtn.textContent = 'Open node';
-                    }
-                };
                 grid.appendChild(card);
             });
+            refreshLiveData();
+            if (nodes.length > 0) {
+                livePollId = setInterval(refreshLiveData, 2000);
+            }
         }
 
         document.getElementById('btn-scan').onclick = discoverNodes;
