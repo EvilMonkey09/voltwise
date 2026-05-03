@@ -18,14 +18,23 @@ def get_local_ip():
         return "127.0.0.1"
 
 def check_ip(ip, results):
-    url = f"http://{ip}:{PORT}/api/data"
+    data_url = f"http://{ip}:{PORT}/api/data"
     try:
-        resp = requests.get(url, timeout=0.5)
-        if resp.status_code == 200:
-            # It's a VoltWise node!
-            # Try to get hostname/config if possible, or just use IP
-            results.append({"ip": str(ip), "hostname": f"Node {str(ip).split('.')[-1]}"})
-    except:
+        resp = requests.get(data_url, timeout=0.5)
+        if resp.status_code != 200:
+            return
+        label = None
+        try:
+            info = requests.get(f"http://{ip}:{PORT}/api/node/info", timeout=0.35)
+            if info.status_code == 200:
+                j = info.json()
+                label = (j.get("display_name") or j.get("node_name") or "").strip()
+        except Exception:
+            pass
+        if not label:
+            label = f"Node {str(ip).split('.')[-1]}"
+        results.append({"ip": str(ip), "hostname": label})
+    except Exception:
         pass
 
 def scan_network():

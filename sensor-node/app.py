@@ -1,10 +1,14 @@
 from flask import Flask, render_template, jsonify, request
-import time
-import threading
 import math
+import socket
+import sys
+import threading
+import time
+
 import config
-from modbus_handler import PZEMHandler
+import node_settings
 from database_handler import DatabaseHandler
+from modbus_handler import PZEMHandler
 
 app = Flask(__name__)
 
@@ -65,9 +69,126 @@ def background_poller():
 # poller_thread = threading.Thread(target=background_poller, daemon=True)
 # poller_thread.start()
 
-@app.route('/')
+def _nm_helpers():
+    if sys.platform != "linux":
+        return None
+    try:
+        from voltwise_network import nm_helpers
+
+        if not nm_helpers.nmcli_available():
+            return None
+        return nm_helpers
+    except Exception:
+        return None
+
+
+@app.route("/")
 def index():
-    return render_template('index.html', sensors=config.SENSOR_ADDRESSES)
+    return render_template(
+        "index.html",
+        sensors=config.SENSOR_ADDRESSES,
+        node_display_name=node_settings.display_name(),
+    )
+
+
+@app.route("/settings")
+def settings_page():
+    return render_template(
+        "settings.html",
+        settings=node_settings.load(),
+        display_name=node_settings.display_name(),
+    )
+
+
+@app.route("/api/node/info")
+def api_node_info():
+    s = node_settings.load()
+    return jsonify(
+        {
+            "node_name": s.get("node_name") or "",
+            "display_name": node_settings.display_name(),
+            "hostname": socket.gethostname(),
+            "timezone": s.get("timezone") or "Europe/Berlin",
+            "version": node_settings.version_string(),
+            "serial_port": config.SERIAL_PORT,
+            "sensor_addresses": config.SENSOR_ADDRESSES,
+            "simulation": getattr(pzem, "simulation_mode", False),
+        }
+    )
+
+
+@app.route("/api/settings", methods=["GET", "PUT"])
+def api_settings():
+    if request.method == "GET":
+        return jsonify(node_settings.load())
+    data = request.get_json(silent=True) or {}
+    saved = node_settings.save(data)
+    return jsonify(saved)
+
+
+@app.route("/api/network/status")
+def api_network_status():
+    nm = _nm_helpers()
+    if not nm:
+        return jsonify(
+            {
+                "available": False,
+                "online": None,
+                "message": "Network management is only available on the Raspberry Pi with NetworkManager.",
+            }
+        )
+    try:
+        online = nm.has_real_connectivity()
+        profiles = nm.list_saved_wifi()
+        return jsonify({"available": True, "online": online, "profiles": profiles})
+    except Exception as e:
+        return jsonify({"available": True, "error": str(e)}), 500
+
+
+@app.route("/api/network/connect", methods=["POST"])
+def api_network_connect():
+    nm = _nm_helpers()
+    if not nm:
+        return jsonify({"ok": False, "error": "Not available on this platform"}), 400
+    data = request.get_json(silent=True) or {}
+    ssid = (data.get("ssid") or "").strip()
+    password = data.get("password") or ""
+    if not ssid:
+        return jsonify({"ok": False, "error": "SSID required"}), 400
+    ok, err = nm.add_wifi_network(ssid, password if password else None)
+    if not ok:
+        return jsonify({"ok": False, "error": err}), 400
+    return jsonify({"ok": True})
+
+
+@app.route("/api/network/profile/<uuid>", methods=["DELETE"])
+def api_network_delete(uuid):
+    nm = _nm_helpers()
+    if not nm:
+        return jsonify({"ok": False}), 400
+    ok, err = nm.delete_connection(uuid)
+    if not ok:
+        return jsonify({"ok": False, "error": err}), 400
+    return jsonify({"ok": True})
+
+
+@app.route("/api/network/profile/<uuid>/priority", methods=["POST"])
+def api_network_priority(uuid):
+    nm = _nm_helpers()
+    if not nm:
+        return jsonify({"ok": False}), 400
+    data = request.get_json(silent=True) or {}
+    delta = int(data.get("delta") or 0)
+    nets = nm.list_saved_wifi()
+    cur = next((n for n in nets if n["uuid"] == uuid), None)
+    if not cur:
+        return jsonify({"ok": False, "error": "Unknown"}), 404
+    new_prio = max(0, cur["priority"] + delta)
+    ok, err = nm.set_priority(uuid, new_prio)
+    if not ok:
+        return jsonify({"ok": False, "error": err}), 400
+    return jsonify({"ok": True})
+
 
 @app.route('/api/data')
 def get_data():
@@ -200,17 +321,24 @@ def export_event_csv(event_id):
     si = io.StringIO()
     cw = csv.writer(si)
     
-    # Headers
-    cw.writerow(['Timestamp', 'Voltage (V)', 'Current (A)', 'Power (W)', 'Energy (Wh)', 'Frequency (Hz)', 'PF'])
-    
+    cw.writerow([
+        'Timestamp',
+        'P1_V', 'P1_A', 'P1_W', 'P1_Wh', 'P1_Hz', 'P1_PF',
+        'P2_V', 'P2_A', 'P2_W', 'P2_Wh', 'P2_Hz', 'P2_PF',
+        'P3_V', 'P3_A', 'P3_W', 'P3_Wh', 'P3_Hz', 'P3_PF',
+        'Neutral_I_A',
+    ])
+
     for log in logs:
-        # Assuming sensor 1 for now, but could expand for multiple
         cw.writerow([
-            log['timestamp'], 
-            log['p1_v'], log['p1_i'], log['p1_p'], log['p1_e'], 
-            # Freq/PF might not be logged in DB correctly if schema didn't include them?
-            # Checked schema: logs has pX_v, pX_i, pX_p, pX_e. No freq/pf in logs schema.
-            # We will just export what we have.
+            log['timestamp'],
+            log.get('p1_v'), log.get('p1_i'), log.get('p1_p'), log.get('p1_e'),
+            log.get('p1_hz'), log.get('p1_pf'),
+            log.get('p2_v'), log.get('p2_i'), log.get('p2_p'), log.get('p2_e'),
+            log.get('p2_hz'), log.get('p2_pf'),
+            log.get('p3_v'), log.get('p3_i'), log.get('p3_p'), log.get('p3_e'),
+            log.get('p3_hz'), log.get('p3_pf'),
+            log.get('neutral_i'),
         ])
         
     output = si.getvalue()

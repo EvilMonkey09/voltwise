@@ -1,15 +1,18 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, Response
+import logging
+import os
+import platform
+import re
 import requests
+import socket
 import sqlite3
+import sys
 import threading
 import time
-from scanner import scan_network
-import logging
 
-import sys
-import os
-import socket
-import platform
+from scanner import scan_network
+
+_IPV4 = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
 
 def get_data_dir():
     """Resolve OS-specific user data directory."""
@@ -71,11 +74,47 @@ if getattr(sys, 'frozen', False):
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    # Nodes table: ip, hostname, last_seen
-    c.execute('''CREATE TABLE IF NOT EXISTS nodes 
-                 (ip TEXT PRIMARY KEY, hostname TEXT, last_seen REAL, status TEXT)''')
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS nodes 
+                 (ip TEXT PRIMARY KEY, hostname TEXT, last_seen REAL, status TEXT, node_label TEXT)"""
+    )
+    for col in ("node_label",):
+        try:
+            c.execute(f"ALTER TABLE nodes ADD COLUMN {col} TEXT")
+        except sqlite3.OperationalError:
+            pass
     conn.commit()
     conn.close()
+
+
+def node_health_loop():
+    while True:
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("SELECT ip FROM nodes")
+            ips = [row[0] for row in c.fetchall()]
+            now = time.time()
+            for ip in ips:
+                try:
+                    r = requests.get(f"http://{ip}:25500/api/data", timeout=2)
+                    ok = r.status_code == 200
+                except requests.RequestException:
+                    ok = False
+                c.execute(
+                    "UPDATE nodes SET last_seen = ?, status = ? WHERE ip = ?",
+                    (now, "online" if ok else "offline", ip),
+                )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logging.exception("node_health_loop: %s", e)
+        time.sleep(30)
+
+
+def start_node_health_monitor():
+    t = threading.Thread(target=node_health_loop, daemon=True)
+    t.start()
 
 @app.route('/')
 def index():
@@ -104,30 +143,59 @@ def discover():
     count = 0
     timestamp = time.time()
     for node in found_nodes:
-        # Upsert
-        c.execute("INSERT OR REPLACE INTO nodes (ip, hostname, last_seen, status) VALUES (?, ?, ?, ?)",
-                  (node['ip'], node.get('hostname', 'Unknown'), timestamp, 'online'))
+        c.execute(
+            """INSERT INTO nodes (ip, hostname, last_seen, status)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(ip) DO UPDATE SET
+                 hostname = excluded.hostname,
+                 last_seen = excluded.last_seen,
+                 status = excluded.status""",
+            (node["ip"], node.get("hostname", "Unknown"), timestamp, "online"),
+        )
         count += 1
     conn.commit()
     conn.close()
     
     return jsonify({"success": True, "count": count, "nodes": found_nodes})
 
-@app.route('/api/proxy/<path:ip>/<path:endpoint>')
-def proxy_request(ip, endpoint):
-    """
-    Proxy requests to sensor nodes to avoid mixed content/CORS.
-    Example: /api/proxy/192.168.1.50/api/data
-    """
+def _proxy_to_node(ip: str, subpath: str):
+    if not _IPV4.match(ip or ""):
+        return jsonify({"error": "invalid ip"}), 400
+    url = f"http://{ip}:25500/{subpath}"
+    if request.query_string:
+        url += f"?{request.query_string.decode('utf-8')}"
     try:
-        url = f"http://{ip}:25500/{endpoint}"
-        if request.query_string:
-            url += f"?{request.query_string.decode('utf-8')}"
-            
-        resp = requests.get(url, timeout=3)
-        return (resp.content, resp.status_code, resp.headers.items())
-    except Exception as e:
+        resp = requests.get(url, timeout=15, stream=False)
+    except requests.RequestException as e:
         return jsonify({"error": str(e)}), 502
+    excluded = {"content-encoding", "content-length", "transfer-encoding", "connection"}
+    headers = [(k, v) for k, v in resp.headers.items() if k.lower() not in excluded]
+    return Response(resp.content, resp.status_code, headers)
+
+
+@app.route("/embed/<ip>/", defaults={"subpath": ""})
+@app.route("/embed/<ip>/<path:subpath>")
+def embed_node(ip, subpath):
+    """Proxy VoltWise Node web UI for same-origin iframe embedding."""
+    return _proxy_to_node(ip, subpath)
+
+
+@app.route("/api/proxy/<path:ip>/<path:endpoint>")
+def proxy_request(ip, endpoint):
+    """Legacy JSON proxy; prefer /embed/ for browser content."""
+    return _proxy_to_node(ip, endpoint)
+
+
+@app.route("/api/nodes/<ip>/label", methods=["PUT"])
+def set_node_label(ip):
+    data = request.get_json(silent=True) or {}
+    label = (data.get("label") or "").strip() or None
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE nodes SET node_label = ? WHERE ip = ?", (label, ip))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
 
 @app.route('/api/recording/start_all', methods=['POST'])
 def start_recording_all():
@@ -182,6 +250,7 @@ if __name__ == '__main__':
     try:
         logging.info("Initializing Database...")
         init_db()
+        start_node_health_monitor()
         
         # --- System Tray & GUI Setup ---
         logging.info("Importing System Tray Libraries...")
@@ -210,7 +279,7 @@ if __name__ == '__main__':
 
         # Define Menu
         menu = TrayMenu(
-            TrayMenuItem("VoltWise Dashboard", None, enabled=False),
+            TrayMenuItem("VoltWise Central", None, enabled=False),
             TrayMenuItem("Open Dashboard", open_dashboard, default=True),
             TrayMenuItem("Quit", quit_app)
         )
@@ -231,8 +300,8 @@ if __name__ == '__main__':
                 local_ip = "127.0.0.1"
                 
             logging.info("Starting Flask Server on Port 25555...")
-            print(f"\n * Dashboard available at: http://{local_ip}:25555\n")
-            
+            print(f"\n * VoltWise Central available at: http://{local_ip}:25555\n")
+
             # Disable reloader because it doesn't work well with threads/PyInstaller
             app.run(host='0.0.0.0', port=25555, debug=False, use_reloader=False)
 

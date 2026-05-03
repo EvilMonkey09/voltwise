@@ -1,0 +1,68 @@
+# Builds the flashable Raspberry Pi OS image (Docker + privileged losetup).
+# Publishes:
+#   - GitHub Actions artifact: voltwise-node-sd-image (*.xz)
+#   - On push to tag v*: attaches *.xz to a Release (creates release if missing)
+
+name: Build SD image
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  VOLTWISE_IMAGE_CACHE: ${{ github.workspace }}/.cache/voltwise-image-cache
+
+jobs:
+  sd-image:
+    name: Build VoltWise SD image
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      # Repository Settings → Variables (optional): full URL to raspios_lite_arm64 .img.xz
+      RPI_OS_IMG_URL: ${{ vars.RPI_OS_IMG_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Raspberry Pi OS download
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VOLTWISE_IMAGE_CACHE }}
+          key: raspios-arm64-${{ runner.os }}-v1-${{ hashFiles('tools/image-build/docker-build-inner.sh', 'tools/image-build/Dockerfile') }}
+          restore-keys: |
+            raspios-arm64-${{ runner.os }}-v1-
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Optional: set repository variable RPI_OS_IMG_URL if Raspberry Pi changed their download path.
+      - name: Build SD image (privileged Docker)
+        run: |
+          chmod +x tools/image-build/build-image.sh
+          ./tools/image-build/build-image.sh
+
+      - name: List outputs
+        run: ls -lah dist/
+
+      - name: Upload artifact (.xz — flash this with Raspberry Pi Imager)
+        uses: actions/upload-artifact@v4
+        with:
+          name: voltwise-node-sd-image
+          path: dist/*.xz
+          if-no-files-found: error
+          retention-days: 21
+
+      - name: Attach to GitHub Release (tags v* only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.xz
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

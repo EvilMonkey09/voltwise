@@ -9,9 +9,11 @@ This repository is divided into two parts:
 The software that runs on the Raspberry Pi.
 
 - Connects to PZEM-004T sensors.
-- Provides a localThe web dashboard will be available at `http://<pi-ip>:25500`.
+- Provides a local web dashboard at `http://<pi-ip>:25500` with **Settings** (device name, timezone, Wi‑Fi profiles).
 
 **[>> Go to Sensor Node Documentation](./sensor-node/SETUP_GUIDE.md)**
+
+**Fertiges SD-Image (nur flashen):** Vorgebautes Raspberry-Pi-OS-Image mit automatischer Erstinstallation und **GPIO-UART / `/dev/serial0`** für PZEM per Jumperkabel — siehe [docs/IMAGE_BUILD.md](docs/IMAGE_BUILD.md). Lokal: `tools/image-build/build-image.sh` (Docker). Auf GitHub: Workflow **„Build SD image“** baut dieselbe `.img.xz` und legt sie als Artifact / bei Tag `v*` am Release ab.
 
 ## 2. [Central Dashboard](./central-dashboard)
 
@@ -26,7 +28,15 @@ The software that runs on the Raspberry Pi.
 
 ## Quick Start (Raspberry Pi)
 
-If you are setting up a sensor:
+### A) Fertig-Image (empfohlen für Einsatz vor Ort)
+
+1. Image bauen (Docker): `./tools/image-build/build-image.sh` → Datei unter `dist/`.
+2. Mit **Raspberry Pi Imager** auf die SD schreiben; im Imager **WLAN/SSH/Benutzer** setzen (Erstinstallation braucht Internet).
+3. Pi starten; nach ein paar Minuten Dashboard: `http://<pi-ip>:25500`.
+
+Details: [docs/IMAGE_BUILD.md](docs/IMAGE_BUILD.md).
+
+### B) Manuell (Repository auf dem Pi)
 
 1.  Clone this repository:
     ```bash

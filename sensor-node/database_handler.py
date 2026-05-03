@@ -38,8 +38,11 @@ class DatabaseHandler:
             timestamp REAL NOT NULL,
             
             p1_v REAL, p1_i REAL, p1_p REAL, p1_e REAL,
+            p1_hz REAL, p1_pf REAL,
             p2_v REAL, p2_i REAL, p2_p REAL, p2_e REAL,
+            p2_hz REAL, p2_pf REAL,
             p3_v REAL, p3_i REAL, p3_p REAL, p3_e REAL,
+            p3_hz REAL, p3_pf REAL,
             
             neutral_i REAL,
             
@@ -47,7 +50,14 @@ class DatabaseHandler:
             FOREIGN KEY(event_id) REFERENCES events(id)
         )
         ''')
-        
+        for col in (
+            "p1_hz", "p1_pf", "p2_hz", "p2_pf", "p3_hz", "p3_pf"
+        ):
+            try:
+                c.execute(f"ALTER TABLE logs ADD COLUMN {col} REAL")
+            except sqlite3.OperationalError:
+                pass
+
         conn.commit()
         conn.close()
 
@@ -84,21 +94,40 @@ class DatabaseHandler:
                 return data_dict[addr].get(key)
             return None
 
-        c.execute('''
+        c.execute(
+            """
         INSERT INTO logs (
             timestamp, event_id,
-            p1_v, p1_i, p1_p, p1_e,
-            p2_v, p2_i, p2_p, p2_e,
-            p3_v, p3_i, p3_p, p3_e,
+            p1_v, p1_i, p1_p, p1_e, p1_hz, p1_pf,
+            p2_v, p2_i, p2_p, p2_e, p2_hz, p2_pf,
+            p3_v, p3_i, p3_p, p3_e, p3_hz, p3_pf,
             neutral_i
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            timestamp, current_event_id,
-            g(1, 'voltage'), g(1, 'current'), g(1, 'power'), g(1, 'energy'),
-            g(2, 'voltage'), g(2, 'current'), g(2, 'power'), g(2, 'energy'),
-            g(3, 'voltage'), g(3, 'current'), g(3, 'power'), g(3, 'energy'),
-            neutral_i
-        ))
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                timestamp,
+                current_event_id,
+                g(1, "voltage"),
+                g(1, "current"),
+                g(1, "power"),
+                g(1, "energy"),
+                g(1, "frequency"),
+                g(1, "pf"),
+                g(2, "voltage"),
+                g(2, "current"),
+                g(2, "power"),
+                g(2, "energy"),
+                g(2, "frequency"),
+                g(2, "pf"),
+                g(3, "voltage"),
+                g(3, "current"),
+                g(3, "power"),
+                g(3, "energy"),
+                g(3, "frequency"),
+                g(3, "pf"),
+                neutral_i,
+            ),
+        )
         
         conn.commit()
         conn.close()

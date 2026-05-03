@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Event Details - VoltWise</title>
+    <title>Event details — VoltWise Node</title>
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
@@ -17,9 +17,12 @@
   <body>
     <div class="container container-fluid"> <!-- Fluid for wider charts -->
       <header>
-        <a href="/" class="btn secondary">← Back to Dashboard</a>
+        <a href="/" class="btn secondary">← Dashboard</a>
         <h1 id="event-name-header">Event Details</h1>
-        <div class="status-indicator" id="event-status-indicator"></div>
+        <div class="header-actions">
+          <a href="/settings" class="nav-settings">Settings</a>
+          <div class="status-indicator" id="event-status-indicator"></div>
+        </div>
       </header>
 
       <!-- Recording Controls -->

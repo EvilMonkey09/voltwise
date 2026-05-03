@@ -12,6 +12,7 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 SERVICE_NAME="voltwise.service"
+NET_SERVICE_NAME="voltwise-network.service"
 
 echo -e "${YELLOW}Starting VoltWise Update...${NC}"
 
@@ -21,9 +22,10 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# 1. Stop the service
-echo -e "${YELLOW}Stopping service...${NC}"
-systemctl stop $SERVICE_NAME || echo -e "${RED}Warning: Could not stop service (maybe not running?)${NC}"
+# 1. Stop the services
+echo -e "${YELLOW}Stopping services...${NC}"
+systemctl stop $SERVICE_NAME || echo -e "${RED}Warning: Could not stop voltwise (maybe not running?)${NC}"
+systemctl stop $NET_SERVICE_NAME || true
 
 # 2. Git Pull
 echo -e "${YELLOW}Pulling latest changes from GitHub...${NC}"
@@ -39,10 +41,11 @@ else
     echo -e "${RED}Virtual environment not found! Run install.sh first.${NC}"
 fi
 
-# 4. Restart Service
-echo -e "${YELLOW}Restarting service...${NC}"
+# 4. Restart services
+echo -e "${YELLOW}Restarting services...${NC}"
 systemctl daemon-reload # In case service file changed
 systemctl start $SERVICE_NAME
+systemctl start $NET_SERVICE_NAME || true
 
 # 5. Check Status
 echo -e "${YELLOW}Checking service status...${NC}"

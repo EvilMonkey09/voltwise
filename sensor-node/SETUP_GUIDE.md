@@ -42,13 +42,16 @@ You need to connect the Low Voltage data side (5V, RX, TX, GND) to your Raspberr
   - **TX** on all sensors -> **RX** on USB Adapter.
 - Plug the USB Adapter into the Raspberry Pi.
 
-**Option 2: Direct GPIO (Advanced)**
+**Option 2: Direct GPIO (typisch / OEM-Image)**
 
 - **5V** -> Pin 4 (5V).
 - **GND** -> Pin 6 (GND).
 - **RX** (Sensor) -> Pin 8 (GPIO 14 TX).
 - **TX** (Sensor) -> Pin 10 (GPIO 15 RX).
-- _Note: You may need to enable Serial in `raspi-config`._
+
+Das **vorgefertigte SD-Image** aus [docs/IMAGE_BUILD.md](../docs/IMAGE_BUILD.md) aktiviert die UART (`enable_uart=1`) und nutzt **`/dev/serial0`** für die PZEM — ohne USB-Adapter.
+
+Manuelle OS-Installation: Seriell unter `sudo raspi-config` (Interface Options → Serial) freigeben und ggf. Konsole von der seriellen Schnittstelle nehmen.
 
 ---
 
@@ -67,9 +70,11 @@ You need to connect the Low Voltage data side (5V, RX, TX, GND) to your Raspberr
 
 ## 4. Install VoltWise Software
 
-Now we install the monitoring software. This process is fully automated.
+### 0. OEM: Nur SD flashen (ohne `git` auf dem Pi)
 
-### 1. Download the Software
+Wenn du das Image aus **IMAGE_BUILD** verwendest, entfällt dieser Abschnitt: Beim **ersten Boot** wird `install.sh` automatisch ausgeführt (Netzwerk im Imager eintragen). Anschließung der PZEM wie unter „Direct GPIO“.
+
+### 1. Manuell: Download the Software
 
 Running in the terminal on your Raspberry Pi:
 
@@ -123,6 +128,21 @@ During installation, the script will ask:
     `http://raspberrypi.local:25500` (or your Pi's IP address: `http://192.168.1.X:25500`)
 
 You should now see the Real-Time Dashboard showing Voltage, Current, and Power!
+
+---
+
+## Wi-Fi setup (no LAN cable)
+
+The **`voltwise-network`** service runs continuously: whenever the Pi has **no usable Ethernet and no active Wi‑Fi client connection**, it starts an **open** access point so staff on site can configure Wi‑Fi:
+
+- **SSID:** `VoltWise-Setup-` followed by a short id (e.g. last digits of the Wi‑Fi MAC).
+- **No password.** Connect with a phone or laptop; the **captive portal** (port 80) lets you add one or more Wi-Fi networks. When the node gets back online, the AP stops until the next time there is no uplink.
+
+You can also manage saved Wi‑Fi profiles and set the **node display name** and timezone under **Settings** in the dashboard (`http://<ip>:25500/settings`) when you are already on the network.
+
+Environment tuning (optional): `VOLTWISE_NET_WAIT` (boot grace before counting “offline”, default 90), `VOLTWISE_OFFLINE_BEFORE_AP` (seconds without uplink before opening the AP, default 45).
+
+Service: `sudo systemctl status voltwise-network`
 
 ---
 

@@ -1,0 +1,15 @@
+[Unit]
+Description=VoltWise Node — first-boot install from SD bundle
+After=network-online.target time-sync.target
+Wants=network-online.target
+ConditionPathExists=!/var/lib/voltwise/firstboot.done
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/voltwise-firstboot.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

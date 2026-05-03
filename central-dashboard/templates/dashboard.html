@@ -7,22 +7,67 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <header>
-        <h1>VoltWise Central</h1>
-        <div class="controls">
-            <button onclick="discoverNodes()">Scan Network</button>
-            <button class="record" onclick="toggleRecording()">Start Recording All</button>
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-mark">VoltWise</span>
+            <span class="brand-sub">Central</span>
+        </div>
+        <div class="toolbar">
+            <button type="button" class="btn btn-primary" id="btn-scan">Scan network</button>
+            <button type="button" class="btn btn-danger" id="btn-record">Start recording all</button>
         </div>
     </header>
 
-    <div id="loading" style="display:none; text-align:center;">Scanning...</div>
+    <p id="loading" class="loading hidden" role="status">Scanning…</p>
 
-    <div id="grid" class="grid">
-        <!-- Cards injected here -->
+    <div id="grid" class="grid"></div>
+
+    <div id="modal-backdrop" class="modal-backdrop hidden" aria-hidden="true"></div>
+    <div id="modal" class="modal hidden" role="dialog" aria-labelledby="modal-title">
+        <h2 id="modal-title">Recording name</h2>
+        <p class="muted">This event name is sent to every VoltWise Node.</p>
+        <input type="text" id="modal-input" placeholder="Event name" autocomplete="off">
+        <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" id="modal-cancel">Cancel</button>
+            <button type="button" class="btn btn-primary" id="modal-ok">Start</button>
+        </div>
     </div>
 
     <script>
         let isRecording = false;
+        let modalResolve = null;
+
+        function showModal(title, placeholder, initial) {
+            document.getElementById('modal-title').textContent = title;
+            const inp = document.getElementById('modal-input');
+            inp.placeholder = placeholder || '';
+            inp.value = initial || '';
+            document.getElementById('modal-backdrop').classList.remove('hidden');
+            document.getElementById('modal').classList.remove('hidden');
+            inp.focus();
+            return new Promise((resolve) => { modalResolve = resolve; });
+        }
+
+        function hideModal(val) {
+            document.getElementById('modal-backdrop').classList.add('hidden');
+            document.getElementById('modal').classList.add('hidden');
+            if (modalResolve) modalResolve(val);
+            modalResolve = null;
+        }
+
+        document.getElementById('modal-cancel').onclick = () => hideModal(null);
+        document.getElementById('modal-ok').onclick = () => {
+            hideModal(document.getElementById('modal-input').value.trim());
+        };
+        document.getElementById('modal-backdrop').onclick = () => hideModal(null);
+
+        function fmtSeen(ts) {
+            if (ts == null || ts === '') return '—';
+            const sec = Math.floor(Date.now() / 1000 - ts);
+            if (sec < 45) return 'just now';
+            if (sec < 3600) return Math.floor(sec / 60) + ' min ago';
+            return Math.floor(sec / 3600) + ' h ago';
+        }
 
         async function loadNodes() {
             const res = await fetch('/api/nodes');
@@ -31,72 +76,107 @@
         }
 
         async function discoverNodes() {
-            document.getElementById('loading').style.display = 'block';
-            const res = await fetch('/api/discover', { method: 'POST' });
-            const data = await res.json();
-            document.getElementById('loading').style.display = 'none';
-            alert(`Found ${data.count} nodes!`);
-            loadNodes();
+            document.getElementById('loading').classList.remove('hidden');
+            try {
+                const res = await fetch('/api/discover', { method: 'POST' });
+                const data = await res.json();
+                document.getElementById('loading').textContent =
+                    'Found ' + data.count + ' VoltWise Node(s).';
+                setTimeout(() => {
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('loading').textContent = 'Scanning…';
+                }, 2000);
+                loadNodes();
+            } catch (e) {
+                document.getElementById('loading').classList.add('hidden');
+            }
         }
 
         async function toggleRecording() {
+            const btn = document.getElementById('btn-record');
             if (!isRecording) {
-                const name = prompt("Enter Event Name for all nodes:", "Central Event");
+                const name = await showModal(
+                    'Recording name',
+                    'Central event',
+                    'Central event'
+                );
                 if (!name) return;
-                
                 await fetch('/api/recording/start_all', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({name: name})
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
                 });
                 isRecording = true;
-                document.querySelector('.record').innerText = "Stop Recording All";
-                document.querySelector('.record').style.backgroundColor = "#333";
+                btn.textContent = 'Stop recording all';
+                btn.classList.remove('btn-danger');
+                btn.classList.add('btn-muted');
             } else {
                 await fetch('/api/recording/stop_all', { method: 'POST' });
                 isRecording = false;
-                document.querySelector('.record').innerText = "Start Recording All";
-                document.querySelector('.record').style.backgroundColor = "#e74c3c";
+                btn.textContent = 'Start recording all';
+                btn.classList.add('btn-danger');
+                btn.classList.remove('btn-muted');
             }
+        }
+
+        async function saveLabel(ip, label) {
+            await fetch('/api/nodes/' + encodeURIComponent(ip) + '/label', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ label })
+            });
+            loadNodes();
         }
 
         function renderGrid(nodes) {
             const grid = document.getElementById('grid');
             grid.innerHTML = '';
-            
-            nodes.forEach(node => {
+            nodes.forEach((node) => {
+                const title = node.node_label || node.hostname || node.ip;
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
-                    <h3>${node.hostname || node.ip}</h3>
-                    <div class="status ${node.status}"></div>
-                    <p>IP: ${node.ip}</p>
-                    <button onclick="toggleView(this, '${node.ip}')">View Details</button>
-                    <div class="iframe-container"></div>
-                `;
+                    <div class="card-head">
+                        <h3 class="card-title"></h3>
+                        <span class="pill pill-${node.status || 'offline'}"></span>
+                    </div>
+                    <p class="meta">IP ${node.ip}</p>
+                    <p class="meta subtle">Last seen: <span class="seen"></span></p>
+                    <div class="card-actions">
+                        <input type="text" class="label-input" placeholder="Display name" aria-label="Display name">
+                        <button type="button" class="btn btn-ghost btn-sm save-label">Save</button>
+                        <button type="button" class="btn btn-primary btn-sm expand-btn">Open node</button>
+                    </div>
+                    <div class="iframe-wrap hidden"></div>`;
+                card.querySelector('.card-title').textContent = title;
+                card.querySelector('.seen').textContent = fmtSeen(node.last_seen);
+                const inp = card.querySelector('.label-input');
+                inp.value = node.node_label || '';
+                card.querySelector('.save-label').onclick = () =>
+                    saveLabel(node.ip, inp.value.trim());
+                const iframeWrap = card.querySelector('.iframe-wrap');
+                const expandBtn = card.querySelector('.expand-btn');
+                expandBtn.onclick = () => {
+                    iframeWrap.classList.toggle('hidden');
+                    if (!iframeWrap.classList.contains('hidden')) {
+                        iframeWrap.innerHTML =
+                            '<iframe class="node-frame" src="http://' +
+                            node.ip +
+                            ':25500/" title="VoltWise Node"></iframe>';
+                        expandBtn.textContent = 'Close node';
+                    } else {
+                        iframeWrap.innerHTML = '';
+                        expandBtn.textContent = 'Open node';
+                    }
+                };
                 grid.appendChild(card);
             });
         }
 
-        function toggleView(btn, ip) {
-            const card = btn.closest('.card');
-            const container = card.querySelector('.iframe-container');
-            const isExpanded = card.classList.toggle('expanded');
-            
-            if (isExpanded) {
-                btn.innerText = "Close Details";
-                // Load iframe directly from node address
-                // Note: Mixed content issues might block this if dashboard is HTTPS and node is HTTP.
-                // Assuming local network is HTTP safe for now.
-                container.innerHTML = `<iframe src="http://${ip}:25500" width="100%" height="100%" frameborder="0"></iframe>`;
-            } else {
-                btn.innerText = "View Details";
-                container.innerHTML = '';
-            }
-        }
-
-        // Initial load
+        document.getElementById('btn-scan').onclick = discoverNodes;
+        document.getElementById('btn-record').onclick = toggleRecording;
         loadNodes();
+        setInterval(loadNodes, 35000);
     </script>
 </body>
 </html>

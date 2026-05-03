@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settings — VoltWise Node</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <style>
+      .settings-layout {
+        max-width: 640px;
+      }
+      .settings-card {
+        margin-bottom: 20px;
+      }
+      .settings-card h2 {
+        margin: 0 0 12px;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      .hint {
+        font-size: 0.88rem;
+        color: var(--vw-muted);
+        margin: 0 0 14px;
+        line-height: 1.45;
+      }
+      select.field {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--vw-border);
+        border-radius: 8px;
+        font-size: 1rem;
+        font-family: inherit;
+        margin-bottom: 14px;
+        background: var(--vw-surface);
+      }
+      .net-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--vw-border);
+        font-size: 0.92rem;
+      }
+      .net-row:last-child {
+        border-bottom: none;
+      }
+      .status-pill {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 500;
+      }
+      .status-pill.ok {
+        background: rgba(22, 163, 74, 0.12);
+        color: var(--vw-success);
+      }
+      .status-pill.bad {
+        background: rgba(220, 38, 38, 0.1);
+        color: var(--vw-danger);
+      }
+      .mini-actions {
+        display: flex;
+        gap: 6px;
+      }
+      header a.settings-back {
+        color: var(--vw-accent);
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 500;
+      }
+      header a.settings-back:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container settings-layout">
+      <header>
+        <div class="brand">
+          <strong>VoltWise</strong>
+          <span>Node settings</span>
+        </div>
+        <a class="settings-back" href="/">← Dashboard</a>
+      </header>
+
+      <section class="card settings-card">
+        <h2>Device name</h2>
+        <p class="hint">
+          Shown in the dashboard header and used when VoltWise Central discovers this Node on the network.
+        </p>
+        <label class="hint" for="node_name">Name</label>
+        <input type="text" id="node_name" placeholder="e.g. Main distro — Stage" maxlength="80" />
+        <label class="hint" for="timezone">Timezone</label>
+        <select id="timezone" class="field">
+          <option value="Europe/Berlin">Europe / Berlin</option>
+          <option value="Europe/Vienna">Europe / Vienna</option>
+          <option value="Europe/Zurich">Europe / Zurich</option>
+          <option value="Europe/Amsterdam">Europe / Amsterdam</option>
+          <option value="Europe/London">Europe / London</option>
+          <option value="UTC">UTC</option>
+        </select>
+        <button type="button" class="btn primary" id="btn-save-general">Save</button>
+        <p id="save-msg" class="hint" style="margin-top: 12px"></p>
+      </section>
+
+      <section class="card settings-card">
+        <h2>Network</h2>
+        <p class="hint">
+          When this Node has <strong>no Ethernet and no Wi‑Fi</strong>, it opens the open network
+          <strong>VoltWise-Setup‑…</strong> so staff on site can add venue Wi‑Fi (captive portal on port 80).
+        </p>
+        <p id="net-status-line" class="hint"></p>
+        <div id="net-profiles"></div>
+        <h3 style="font-size: 0.95rem; margin: 16px 0 8px">Add Wi‑Fi</h3>
+        <input type="text" id="wifi-ssid" placeholder="SSID" autocomplete="off" />
+        <input type="password" id="wifi-pw" placeholder="Password (empty if open)" autocomplete="off" />
+        <button type="button" class="btn primary" id="btn-wifi-add" style="margin-top: 10px">
+          Save &amp; connect
+        </button>
+        <p id="net-msg" class="hint" style="margin-top: 12px"></p>
+      </section>
+
+      <section class="card settings-card">
+        <h2>Device info</h2>
+        <p class="hint" id="info-version"></p>
+        <p class="hint" id="info-serial"></p>
+        <p class="hint" id="info-sensors"></p>
+      </section>
+    </div>
+    <script>
+      async function load() {
+        const [st, info, net] = await Promise.all([
+          fetch('/api/settings').then((r) => r.json()),
+          fetch('/api/node/info').then((r) => r.json()),
+          fetch('/api/network/status').then((r) => r.json()),
+        ]);
+        document.getElementById('node_name').value = st.node_name || '';
+        const tz = document.getElementById('timezone');
+        const opt = [...tz.options].find((o) => o.value === st.timezone);
+        if (opt) tz.value = st.timezone;
+        else {
+          const o = document.createElement('option');
+          o.value = st.timezone || 'Europe/Berlin';
+          o.textContent = st.timezone || 'Europe/Berlin';
+          tz.appendChild(o);
+          tz.value = o.value;
+        }
+        document.getElementById('info-version').textContent = 'Software: VoltWise Node ' + info.version;
+        document.getElementById('info-serial').textContent = 'Serial port: ' + info.serial_port;
+        document.getElementById('info-sensors').textContent =
+          'Modbus addresses: ' + (info.sensor_addresses || []).join(', ');
+        const ns = document.getElementById('net-status-line');
+        const wrap = document.getElementById('net-profiles');
+        wrap.innerHTML = '';
+        if (!net.available) {
+          ns.innerHTML =
+            '<span class="status-pill bad">Network UI</span> ' +
+            (net.message || 'Unavailable here — use the Pi with NetworkManager.');
+          document.getElementById('btn-wifi-add').disabled = true;
+          return;
+        }
+        ns.innerHTML =
+          '<span class="status-pill ' +
+          (net.online ? 'ok' : 'bad') +
+          '">' +
+          (net.online ? 'Online' : 'No uplink') +
+          '</span> Saved Wi‑Fi profiles are tried by priority when you move between venues.';
+        (net.profiles || []).forEach((p) => {
+          const row = document.createElement('div');
+          row.className = 'net-row';
+          row.innerHTML =
+            '<span>' +
+            (p.ssid || p.name) +
+            ' <small style="color:var(--vw-muted)">prio ' +
+            p.priority +
+            '</small></span><div class="mini-actions"><button type="button" class="btn secondary btn-sm up">↑</button><button type="button" class="btn secondary btn-sm down">↓</button><button type="button" class="btn danger btn-sm del">Remove</button></div>';
+          row.querySelector('.up').onclick = () => bump(p.uuid, 1);
+          row.querySelector('.down').onclick = () => bump(p.uuid, -1);
+          row.querySelector('.del').onclick = () => removeProf(p.uuid);
+          wrap.appendChild(row);
+        });
+      }
+
+      async function bump(uuid, d) {
+        await fetch('/api/network/profile/' + encodeURIComponent(uuid) + '/priority', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ delta: d }),
+        });
+        load();
+      }
+
+      async function removeProf(uuid) {
+        if (!confirm('Remove this saved network?')) return;
+        await fetch('/api/network/profile/' + encodeURIComponent(uuid), { method: 'DELETE' });
+        load();
+      }
+
+      document.getElementById('btn-save-general').onclick = async () => {
+        const msg = document.getElementById('save-msg');
+        msg.textContent = '';
+        const r = await fetch('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            node_name: document.getElementById('node_name').value,
+            timezone: document.getElementById('timezone').value,
+          }),
+        });
+        if (!r.ok) {
+          msg.textContent = 'Could not save.';
+          return;
+        }
+        msg.textContent = 'Saved.';
+      };
+
+      document.getElementById('btn-wifi-add').onclick = async () => {
+        const msg = document.getElementById('net-msg');
+        msg.textContent = '';
+        const ssid = document.getElementById('wifi-ssid').value.trim();
+        const password = document.getElementById('wifi-pw').value;
+        if (!ssid) {
+          msg.textContent = 'Enter SSID.';
+          return;
+        }
+        const r = await fetch('/api/network/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssid, password }),
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          msg.textContent = j.error || 'Failed';
+          return;
+        }
+        msg.textContent = 'Saved. Connection may take a few seconds.';
+        document.getElementById('wifi-ssid').value = '';
+        document.getElementById('wifi-pw').value = '';
+        load();
+      };
+
+      load();
+    </script>
+  </body>
+</html>

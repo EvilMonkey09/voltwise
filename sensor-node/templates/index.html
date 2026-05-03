@@ -3,22 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VoltWise</title>
+    <title>VoltWise Node</title>
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
-      rel="stylesheet"
     />
     <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
   </head>
   <body>
     <div class="container">
       <header>
-        <h1>VoltWise</h1>
-        <div id="connection-status" class="status-indicator">Connecting...</div>
+        <div class="brand">
+          <strong>VoltWise</strong>
+          <span>{{ node_display_name }}</span>
+        </div>
+        <div class="header-actions">
+          <a href="/settings" class="nav-settings">Settings</a>
+          <div id="connection-status" class="status-indicator">Connecting...</div>
+        </div>
       </header>
 
       <!-- Live Data Section (Current Values) -->

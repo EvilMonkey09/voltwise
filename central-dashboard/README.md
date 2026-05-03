@@ -1,8 +1,8 @@
 # Central Dashboard
 
-This directory will contain the Central Dashboard application, designed to aggregate data from multiple VoltWise sensor nodes.
+**VoltWise Central** — desktop app to discover and monitor multiple **VoltWise Nodes** on the LAN.
 
-**Status**: Active / Production Ready
+**Status**: Active
 
 ## Installation
 

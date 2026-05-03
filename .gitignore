@@ -29,6 +29,9 @@ ENV/
 *.db
 *.sqlite3
 
+# Device-local VoltWise Node settings (optional — remove line to commit defaults)
+sensor-node/node_settings.json
+
 # IDE
 .vscode/
 .idea/
@@ -36,3 +39,6 @@ ENV/
 
 # Logs
 *.log
+
+# Built SD images
+dist/
