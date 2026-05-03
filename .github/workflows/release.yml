@@ -25,6 +25,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set VERSION from release tag
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          echo "$V" > sensor-node/VERSION
+          echo "$V" > central-dashboard/VERSION
+
       - uses: actions/cache@v4
         with:
           path: ${{ env.VOLTWISE_IMAGE_CACHE }}
@@ -68,6 +74,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set VERSION from release tag
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          echo "$V" > sensor-node/VERSION
+          echo "$V" > central-dashboard/VERSION
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -84,19 +96,19 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           cd central-dashboard
-          pyinstaller --name "VoltWise-Windows" --add-data "templates;templates" --add-data "static;static" --add-data "logo.png;." --icon "icon.ico" --windowed --onefile app.py
+          pyinstaller --hidden-import packaging.version --hidden-import packaging.specifiers --name "VoltWise-Windows" --add-data "templates;templates" --add-data "static;static" --add-data "logo.png;." --add-data "VERSION;." --icon "icon.ico" --windowed --onefile app.py
 
       - name: Build Linux
         if: runner.os == 'Linux'
         run: |
           cd central-dashboard
-          pyinstaller --name "VoltWise-Linux" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --windowed --onefile app.py
+          pyinstaller --hidden-import packaging.version --hidden-import packaging.specifiers --name "VoltWise-Linux" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --add-data "VERSION:." --windowed --onefile app.py
 
       - name: Build macOS
         if: runner.os == 'macOS'
         run: |
           cd central-dashboard
-          pyinstaller --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --icon "icon.icns" --windowed --noconsole app.py
+          pyinstaller --hidden-import packaging.version --hidden-import packaging.specifiers --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --add-data "VERSION:." --icon "icon.icns" --windowed --noconsole app.py
           brew install create-dmg
           rm -f dist/VoltWise.dmg || true
           create-dmg \

@@ -383,6 +383,68 @@ tbody tr:hover {
   margin-bottom: 14px;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 17, 21, 0.45);
+  z-index: 1000;
+}
+
+.vw-modal {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+  background: var(--vw-surface);
+  border: 1px solid var(--vw-border);
+  border-radius: var(--vw-radius);
+  padding: 22px;
+  max-width: 440px;
+  width: calc(100% - 32px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+}
+
+.vw-modal h2 {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+}
+
+.vw-modal .muted {
+  color: var(--vw-muted);
+  font-size: 0.92rem;
+  margin-bottom: 12px;
+}
+
+.vw-modal .hint {
+  font-size: 0.88rem;
+  color: var(--vw-muted);
+  margin-bottom: 12px;
+}
+
+.vw-modal .hint code {
+  font-size: 0.85rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.upd-log {
+  margin-top: 12px;
+  max-height: 180px;
+  overflow: auto;
+  font-size: 0.78rem;
+  background: var(--vw-bg);
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--vw-border);
+}
+
 @media (max-width: 600px) {
   .event-input-group {
     flex-direction: column;

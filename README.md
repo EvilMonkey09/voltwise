@@ -23,6 +23,8 @@ The software that runs on the Raspberry Pi.
 - Aggregates data from multiple Pis.
 - **[Download Central](https://github.com/EvilMonkey09/voltwise/releases/latest)** (Windows / Linux / macOS — siehe Release-Assets)
 
+**Updates:** Node und Central vergleichen beim Start die Versionsnummer (`VERSION` / Release-Tag) mit dem neuesten **[GitHub Release](https://github.com/EvilMonkey09/voltwise/releases)** und können im Dashboard darauf hinweisen.
+
 Versionierte **Komplett-Releases** (Node SD-Image + Central): Tag **`v*`** pushen → Workflow **„Release (Node SD + Central)“**.
 - _Note for Mac Users: If you see a security warning, please Right-Click -> Open._
 

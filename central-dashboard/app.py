@@ -9,8 +9,10 @@ import sqlite3
 import sys
 import threading
 import time
+from pathlib import Path
 
 from scanner import scan_network
+import voltwise_release_info
 
 _IPV4 = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
 
@@ -64,6 +66,32 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
 
     return os.path.join(base_path, relative_path)
+
+
+def app_version_string():
+    try:
+        vf = resource_path("VERSION")
+        if os.path.isfile(vf):
+            with open(vf, encoding="utf-8") as f:
+                v = f.read().strip()
+                if v:
+                    return v
+    except OSError:
+        pass
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")
+    if os.path.isfile(p):
+        with open(p, encoding="utf-8") as f:
+            return f.read().strip()
+    return os.environ.get("VOLTWISE_VERSION", "0.0.0")
+
+
+def central_asset_hint():
+    system = platform.system()
+    if system == "Windows":
+        return {"filename": "VoltWise-Central-Windows-x86_64.exe", "label": "Windows"}
+    if system == "Darwin":
+        return {"filename": "VoltWise-Central-macOS.dmg", "label": "macOS"}
+    return {"filename": "VoltWise-Central-Linux-x86_64", "label": "Linux"}
 
 if getattr(sys, 'frozen', False):
     # If running as compiled exe, look for templates/static in the temp folder
@@ -119,6 +147,24 @@ def start_node_health_monitor():
 @app.route('/')
 def index():
     return render_template('dashboard.html')
+
+
+@app.route("/api/app/update-status")
+def api_app_update_status():
+    cache = Path(DATA_DIR) / "update_check_cache.json"
+    info = voltwise_release_info.check_cached_or_fetch(app_version_string(), cache)
+    hint = central_asset_hint()
+    dl_url = None
+    if info.get("ok") and info.get("assets"):
+        for a in info["assets"]:
+            if a.get("name") == hint["filename"]:
+                dl_url = a.get("browser_download_url")
+                break
+    out = dict(info)
+    out["recommended_asset"] = hint
+    out["recommended_download_url"] = dl_url
+    return jsonify(out)
+
 
 @app.route('/api/nodes', methods=['GET'])
 def get_nodes():

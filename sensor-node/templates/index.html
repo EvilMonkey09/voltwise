@@ -146,7 +146,24 @@
       </section>
     </div>
 
-    <!-- Create Event Modal (Simple Prompt for now, or handled in JS) -->
+    <div id="update-backdrop" class="modal-backdrop hidden" aria-hidden="true"></div>
+    <div id="update-modal" class="vw-modal hidden" role="dialog" aria-labelledby="upd-title">
+      <h2 id="upd-title">Software-Update</h2>
+      <p class="muted">
+        Neu auf GitHub: <strong id="upd-latest"></strong> — installiert:
+        <span id="upd-current"></span>
+      </p>
+      <p id="upd-no-sudo" class="hint hidden">
+        Automatisches Update nicht eingerichtet — per SSH im Ordner
+        <code>sensor-node</code>:
+        <code>sudo ./update.sh</code>
+      </p>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" id="upd-dismiss">Später</button>
+        <button type="button" class="btn primary" id="upd-install">Jetzt installieren</button>
+      </div>
+      <pre id="upd-log" class="upd-log hidden"></pre>
+    </div>
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
   </body>

@@ -157,15 +157,42 @@ Service: `sudo systemctl status voltwise-network`
 
 ## 6. Updating VoltWise
 
-To update to the latest version, simply run the update script:
+### Compare versions (GitHub Releases)
 
-1.  **Connect via SSH**: `ssh pi@raspberrypi.local`
-2.  **Go to the directory**: `cd voltwise/sensor-node`
-3.  **Run the update**:
-    ```bash
-    sudo ./update.sh
-    ```
+The installed version comes from the `VERSION` file next to the app (set when you build from a release tag). VoltWise can compare it to the latest **[GitHub Release](https://github.com/EvilMonkey09/voltwise/releases)** (same mechanism as the dashboard hint).
 
-This will automatically pull the latest changes, update dependencies, and restart the service.
+Optional: point checks at a fork by setting `VOLTWISE_GITHUB_REPO` (e.g. `owner/voltwise`) for the service environment.
+
+### Git clone install
+
+If you cloned the repository (there is a `.git` folder):
+
+1. SSH: `ssh pi@raspberrypi.local`
+2. `cd` to your `sensor-node` directory (e.g. `cd ~/voltwise/sensor-node`).
+3. Run:
+   ```bash
+   sudo ./update.sh
+   ```
+   This runs `git pull`, updates Python deps in `venv`, and restarts `voltwise` / `voltwise-network`.
+
+### OEM / SD image (no `.git`)
+
+`install.sh` registers `/usr/local/sbin/voltwise-apply-update.sh`. `sudo ./update.sh` downloads the latest release **source tarball** from GitHub, merges `sensor-node/` over your install (keeps `venv`, `node_settings.json`, `energy_data.db`), runs `pip`, and restarts services.
+
+### Dashboard “Install update” (browser)
+
+The Flask app runs as your normal user; applying an update from the UI uses `sudo -n` on that helper script. Configure **passwordless sudo only for this script** (replace `pi` with your login):
+
+```bash
+sudo visudo -f /etc/sudoers.d/voltwise-ota
+```
+
+Add:
+
+```
+pi ALL=(root) NOPASSWD: /usr/local/sbin/voltwise-apply-update.sh
+```
+
+Without this, use SSH and `sudo ./update.sh` instead. Old installs before this helper existed should run **`install.sh` once again** (or copy `voltwise-apply-update.sh` and `/etc/voltwise/sensor_node_dir` as documented in `install.sh`).
 
 Happy Monitoring! ⚡

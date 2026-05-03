@@ -33,6 +33,20 @@
         </div>
     </div>
 
+    <div id="upd-modal-backdrop" class="modal-backdrop hidden" aria-hidden="true"></div>
+    <div id="upd-modal" class="modal hidden" role="dialog" aria-labelledby="upd-modal-title">
+        <h2 id="upd-modal-title">Update available</h2>
+        <p class="muted">
+            Installed: <span id="upd-inst"></span> · Latest:
+            <span id="upd-new"></span>
+        </p>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" id="upd-later">Later</button>
+            <a class="btn btn-primary" id="upd-open-release" href="#" target="_blank" rel="noopener">Open release page</a>
+            <a class="btn btn-primary hidden" id="upd-dl" href="#" target="_blank" rel="noopener">Download installer</a>
+        </div>
+    </div>
+
     <script>
         let isRecording = false;
         let modalResolve = null;
@@ -177,6 +191,39 @@
         document.getElementById('btn-record').onclick = toggleRecording;
         loadNodes();
         setInterval(loadNodes, 35000);
+
+        async function checkAppUpdate() {
+            try {
+                const r = await fetch('/api/app/update-status');
+                const d = await r.json();
+                if (!d.update_available || !d.html_url) return;
+                document.getElementById('upd-inst').textContent = d.current;
+                document.getElementById('upd-new').textContent =
+                    d.latest_tag || d.latest_version || '';
+                document.getElementById('upd-open-release').href = d.html_url;
+                const dlb = document.getElementById('upd-dl');
+                if (d.recommended_download_url) {
+                    dlb.href = d.recommended_download_url;
+                    dlb.classList.remove('hidden');
+                } else {
+                    dlb.classList.add('hidden');
+                }
+                document.getElementById('upd-modal-backdrop').classList.remove('hidden');
+                document.getElementById('upd-modal').classList.remove('hidden');
+                document.getElementById('upd-later').onclick = () => {
+                    document.getElementById('upd-modal-backdrop').classList.add('hidden');
+                    document.getElementById('upd-modal').classList.add('hidden');
+                };
+                document.getElementById('upd-modal-backdrop').onclick = (ev) => {
+                    if (ev.target.id === 'upd-modal-backdrop') {
+                        document.getElementById('upd-later').click();
+                    }
+                };
+            } catch (e) {
+                /* offline / GitHub unreachable */
+            }
+        }
+        checkAppUpdate();
     </script>
 </body>
 </html>

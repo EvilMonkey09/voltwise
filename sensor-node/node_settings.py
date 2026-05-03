@@ -6,7 +6,9 @@ import os
 import socket
 from pathlib import Path
 
-SETTINGS_FILE = Path(__file__).resolve().parent / "node_settings.json"
+_APP_DIR = Path(__file__).resolve().parent
+SETTINGS_FILE = _APP_DIR / "node_settings.json"
+_VERSION_FILE = _APP_DIR / "VERSION"
 
 DEFAULTS = {
     "node_name": "",
@@ -60,4 +62,14 @@ def display_name() -> str:
 
 
 def version_string() -> str:
-    return os.environ.get("VOLTWISE_VERSION", "1.1.0")
+    env_v = os.environ.get("VOLTWISE_VERSION", "").strip()
+    if env_v:
+        return env_v
+    try:
+        if _VERSION_FILE.is_file():
+            v = _VERSION_FILE.read_text(encoding="utf-8").strip()
+            if v:
+                return v
+    except OSError:
+        pass
+    return "0.0.0"

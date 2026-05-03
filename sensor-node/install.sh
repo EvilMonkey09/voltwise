@@ -173,6 +173,13 @@ EOF
 
 sudo cp "$SERVICE_NAME" "/etc/systemd/system/$SERVICE_NAME"
 sudo cp "$NET_SERVICE_NAME" "/etc/systemd/system/$NET_SERVICE_NAME"
+
+echo -e "${YELLOW}Registering OTA update helper…${NC}"
+sudo mkdir -p /etc/voltwise
+echo "$SCRIPT_DIR" | sudo tee /etc/voltwise/sensor_node_dir >/dev/null
+sudo cp "$SCRIPT_DIR/voltwise-apply-update.sh" /usr/local/sbin/voltwise-apply-update.sh
+sudo chmod 755 /usr/local/sbin/voltwise-apply-update.sh
+
 sudo systemctl daemon-reload
 sudo systemctl enable "$SERVICE_NAME"
 sudo systemctl enable "$NET_SERVICE_NAME"

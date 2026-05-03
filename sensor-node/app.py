@@ -1,14 +1,22 @@
 from flask import Flask, render_template, jsonify, request
 import math
+import os
 import socket
+import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 
 import config
 import node_settings
+import voltwise_release_info
 from database_handler import DatabaseHandler
 from modbus_handler import PZEMHandler
+
+_UPDATE_CACHE = Path(__file__).resolve().parent / ".update_check_cache.json"
+_OTA_SCRIPT = "/usr/local/sbin/voltwise-apply-update.sh"
+_OTA_DIR_FILE = "/etc/voltwise/sensor_node_dir"
 
 app = Flask(__name__)
 
@@ -352,8 +360,57 @@ def export_event_csv(event_id):
         headers={"Content-disposition": f"attachment; filename={event['name']}.csv"}
     )
 
+
+@app.route("/api/update/status")
+def api_update_status():
+    info = voltwise_release_info.check_cached_or_fetch(
+        node_settings.version_string(), _UPDATE_CACHE
+    )
+    info["can_apply_zip"] = os.path.isfile(_OTA_SCRIPT) and os.path.isfile(_OTA_DIR_FILE)
+    return jsonify(info)
+
+
+@app.route("/api/update/apply", methods=["POST"])
+def api_update_apply():
+    data = request.get_json(silent=True) or {}
+    if not data.get("confirm"):
+        return jsonify({"ok": False, "error": "confirm required"}), 400
+    st = voltwise_release_info.check_cached_or_fetch(
+        node_settings.version_string(),
+        _UPDATE_CACHE,
+        max_age_seconds=120,
+    )
+    if not st.get("ok") or not st.get("update_available"):
+        return jsonify({"ok": False, "error": "No update available"}), 400
+    if not os.path.isfile(_OTA_SCRIPT):
+        return jsonify(
+            {
+                "ok": False,
+                "error": "OTA script missing — run install.sh once or see SETUP_GUIDE.",
+            }
+        ), 503
+    try:
+        r = subprocess.run(
+            ["sudo", "-n", _OTA_SCRIPT, "latest"],
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+        return jsonify(
+            {
+                "ok": r.returncode == 0,
+                "stdout": r.stdout[-8000:],
+                "stderr": r.stderr[-8000:],
+                "code": r.returncode,
+            }
+        )
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": False, "error": "Update timed out"}), 500
+    except FileNotFoundError:
+        return jsonify({"ok": False, "error": "sudo not available"}), 500
+
+
 if __name__ == '__main__':
-    import os
     # Initialize DB (create tables)
     db.init_db()
     

@@ -19,6 +19,18 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Set VERSION for CI build
+        shell: bash
+        run: |
+          set -e
+          if TAG=$(git describe --tags --exact-match 2>/dev/null); then
+            V="${TAG#v}"
+          else
+            V="0.0.0+$(git rev-parse --short HEAD)"
+          fi
+          echo "$V" > sensor-node/VERSION
+          echo "$V" > central-dashboard/VERSION
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -37,21 +49,21 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           cd central-dashboard
-          pyinstaller --name "VoltWise-Windows" --add-data "templates;templates" --add-data "static;static" --add-data "logo.png;." --icon "icon.ico" --windowed --onefile app.py
+          pyinstaller --hidden-import packaging.version --hidden-import packaging.specifiers --name "VoltWise-Windows" --add-data "templates;templates" --add-data "static;static" --add-data "logo.png;." --add-data "VERSION;." --icon "icon.ico" --windowed --onefile app.py
 
       # --- Linux Build ---
       - name: Build Linux
         if: runner.os == 'Linux'
         run: |
           cd central-dashboard
-          pyinstaller --name "VoltWise-Linux" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --windowed --onefile app.py
+          pyinstaller --hidden-import packaging.version --hidden-import packaging.specifiers --name "VoltWise-Linux" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --add-data "VERSION:." --windowed --onefile app.py
 
       # --- Mac Build & DMG ---
       - name: Build Mac
         if: runner.os == 'macOS'
         run: |
           cd central-dashboard
-          pyinstaller --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --icon "icon.icns" --windowed --noconsole app.py
+          pyinstaller --hidden-import packaging.version --hidden-import packaging.specifiers --name "VoltWise" --add-data "templates:templates" --add-data "static:static" --add-data "logo.png:." --add-data "VERSION:." --icon "icon.icns" --windowed --noconsole app.py
           brew install create-dmg
           # Cleanup old dmg if exists
           rm -f dist/VoltWise.dmg || true

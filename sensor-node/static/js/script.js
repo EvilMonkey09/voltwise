@@ -269,4 +269,67 @@ document.addEventListener("DOMContentLoaded", () => {
           loadHistory();
       }
   };
+
+  async function checkUpdate() {
+    try {
+      const r = await fetch("/api/update/status");
+      const d = await r.json();
+      if (!d.ok || !d.update_available) return;
+      const bd = document.getElementById("update-backdrop");
+      const md = document.getElementById("update-modal");
+      if (!bd || !md) return;
+      document.getElementById("upd-current").textContent = d.current;
+      document.getElementById("upd-latest").textContent =
+        d.latest_tag || d.latest_version || "";
+      const warn = document.getElementById("upd-no-sudo");
+      const installBtn = document.getElementById("upd-install");
+      if (!d.can_apply_zip) {
+        warn.classList.remove("hidden");
+        installBtn.classList.add("hidden");
+      }
+      bd.classList.remove("hidden");
+      md.classList.remove("hidden");
+      document.getElementById("upd-dismiss").onclick = () => {
+        bd.classList.add("hidden");
+        md.classList.add("hidden");
+      };
+      installBtn.onclick = async () => {
+        installBtn.disabled = true;
+        const logEl = document.getElementById("upd-log");
+        logEl.classList.remove("hidden");
+        logEl.textContent = "Installiere…";
+        try {
+          const resp = await fetch("/api/update/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ confirm: true }),
+          });
+          const out = await resp.json();
+          logEl.textContent =
+            (out.stdout || "") +
+            "\n" +
+            (out.stderr || "") +
+            "\n" +
+            (out.error || "") +
+            "\n";
+          if (out.ok) {
+            logEl.textContent += "\nFertig — Seite lädt gleich neu…";
+            setTimeout(() => location.reload(), 5000);
+          }
+        } catch (e) {
+          logEl.textContent += String(e);
+        }
+        installBtn.disabled = false;
+      };
+      bd.onclick = (ev) => {
+        if (ev.target === bd) {
+          bd.classList.add("hidden");
+          md.classList.add("hidden");
+        }
+      };
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  checkUpdate();
 });
