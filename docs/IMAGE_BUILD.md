@@ -11,8 +11,28 @@ Ziel: **eine `.img` / `.img.xz`**, die du mit dem **Raspberry Pi Imager** auf di
 
 ## Voraussetzungen beim ersten Boot
 
-- **Netzwerk**: Ethernet oder WLAN **muss erreichbar sein**, damit `apt` und `pip` laufen. Am einfachsten **WLAN/Ethernet in Raspberry Pi Imager (Erweiterte Optionen)** eintragen, **bevor** du das Image schreibst.
-- **Benutzer**: Es muss ein Login mit **UID 1000** existieren (Standard, wenn du einen Benutzer im Imager anlegst). Das Firstboot-Skript installiert für diesen User nach `/home/<user>/voltwise/sensor-node`.
+- **Netzwerk**: Ethernet oder WLAN **muss erreichbar sein**, damit `apt` und `pip` laufen.
+- **Benutzer**: Es muss ein Login mit **UID 1000** existieren. Du kannst ihn entweder im Imager setzen **oder direkt beim Build ins Image injizieren** (siehe unten).
+
+## Default-User im Custom-Image
+
+Der Build erzeugt immer `userconf.txt` mit festen Standard-Zugangsdaten:
+
+- **User:** `voltwise`
+- **Passwort:** `voltwise`
+- **SSH:** standardmäßig aus
+
+Damit funktioniert der erste Boot auch ohne Imager-Advanced-Options. Optional kannst du lokal trotzdem überschreiben:
+
+```bash
+VOLTWISE_PI_USER=myuser VOLTWISE_PI_PASSWORD='mypassword' ./tools/image-build/build-image.sh
+```
+
+SSH bei Bedarf aktivieren:
+
+```bash
+VOLTWISE_PI_ENABLE_SSH=1 ./tools/image-build/build-image.sh
+```
 
 ## Image selbst bauen (Docker)
 
@@ -92,3 +112,14 @@ Weiterhin möglich: Repo klonen und `sudo ./install.sh` auf einem normalen Raspb
 Der SD-Build läuft **ohne Docker** auf dem **Ubuntu-Runner** (`sudo losetup` / `mount`). Lokal weiterhin **`tools/image-build/build-image.sh`** (Docker) oder **`docker-build-inner.sh`** mit `SOURCE_DIR` / `OUTPUT_DIR` / `CACHE_DIR`.
 
 **Hinweis:** Variable **`RPI_OS_IMG_URL`** (Actions → Variables) setzen, falls der Standard-Download zu Raspberry Pi OS veraltet ist.
+
+### Release-Assets (GitHub) mit festen Zugangsdaten
+
+Der Workflow **Release (Node SD + Central)** baut das SD-Image standardmäßig ebenfalls mit:
+
+- **User:** `voltwise`
+- **Passwort:** `voltwise`
+- **SSH:** aus (Default)
+
+Tag pushen (`v*`) → Release enthält direkt nutzbar:
+`VoltWise-Node-RaspberryPi-arm64-bookworm-lite.img.xz`

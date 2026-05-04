@@ -21,6 +21,9 @@ jobs:
     timeout-minutes: 180
     env:
       RPI_OS_IMG_URL: ${{ vars.RPI_OS_IMG_URL }}
+      VOLTWISE_PI_USER: voltwise
+      VOLTWISE_PI_PASSWORD: voltwise
+      VOLTWISE_PI_ENABLE_SSH: "0"
 
     steps:
       - uses: actions/checkout@v4
@@ -50,6 +53,9 @@ jobs:
           OUTPUT_DIR: ${{ github.workspace }}/dist
           CACHE_DIR: ${{ env.VOLTWISE_IMAGE_CACHE }}
           COMPRESS: "1"
+          VOLTWISE_PI_USER: ${{ env.VOLTWISE_PI_USER }}
+          VOLTWISE_PI_PASSWORD: ${{ env.VOLTWISE_PI_PASSWORD }}
+          VOLTWISE_PI_ENABLE_SSH: ${{ env.VOLTWISE_PI_ENABLE_SSH }}
         run: |
           mkdir -p dist "$VOLTWISE_IMAGE_CACHE"
           sudo chmod +x tools/image-build/docker-build-inner.sh

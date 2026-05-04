@@ -28,6 +28,10 @@ docker run --rm --privileged \
   -e "COMPRESS=${COMPRESS:-1}" \
   -e "RPI_OS_IMG_URL=${RPI_OS_IMG_URL:-}" \
   -e "VOLTWISE_DEMO_IMAGE=${VOLTWISE_DEMO_IMAGE:-}" \
+  -e "VOLTWISE_PI_USER=${VOLTWISE_PI_USER:-}" \
+  -e "VOLTWISE_PI_PASSWORD=${VOLTWISE_PI_PASSWORD:-}" \
+  -e "VOLTWISE_PI_PASSWORD_HASH=${VOLTWISE_PI_PASSWORD_HASH:-}" \
+  -e "VOLTWISE_PI_ENABLE_SSH=${VOLTWISE_PI_ENABLE_SSH:-1}" \
   -v "$ROOT:/src:ro" \
   -v "$ROOT/dist:/out" \
   -v "$CACHE_VOL:/cache" \

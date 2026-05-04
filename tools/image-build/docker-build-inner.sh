@@ -10,6 +10,10 @@ mkdir -p "$OUT" "$CACHE"
 IMG_URL="${RPI_OS_IMG_URL:-https://downloads.raspberrypi.org/raspios_lite_arm64/images/raspios_lite_arm64-2024-11-19/2024-11-19-raspios-bookworm-arm64-lite.img.xz}"
 # Stable path after decompress (upstream filename varies with the release date in IMG_URL)
 RAW_IMG="$CACHE/raspios-unpacked.img"
+PI_USER="${VOLTWISE_PI_USER:-voltwise}"
+PI_PASSWORD="${VOLTWISE_PI_PASSWORD:-voltwise}"
+PI_PASSWORD_HASH="${VOLTWISE_PI_PASSWORD_HASH:-}"
+PI_ENABLE_SSH="${VOLTWISE_PI_ENABLE_SSH:-0}"
 
 ROOT_MOUNT=/mnt/rpi-img
 BOOT_MNT="$ROOT_MOUNT/boot"
@@ -21,6 +25,10 @@ echo "==> Output dir:  $OUT"
 if [[ ! -d "$SRC/sensor-node" ]]; then
   echo "ERROR: $SRC/sensor-node not found. Mount the VoltWise repository at $SRC."
   exit 1
+fi
+
+if [[ -z "$PI_PASSWORD_HASH" ]]; then
+  PI_PASSWORD_HASH=$(openssl passwd -6 "$PI_PASSWORD")
 fi
 
 echo "==> Creating sensor-node bundle tarball (excluding venv, DB, local settings) …"
@@ -87,6 +95,21 @@ if [[ "${VOLTWISE_DEMO_IMAGE:-}" == "1" ]]; then
   : >"$BOOT_MNT/voltwise-demo"
   if [[ -d "$ROOT_MNT/boot/firmware" ]]; then
     : >"$ROOT_MNT/boot/firmware/voltwise-demo"
+  fi
+fi
+
+echo "==> Injecting default first-boot OS user '$PI_USER' via userconf.txt …"
+printf '%s:%s\n' "$PI_USER" "$PI_PASSWORD_HASH" > "$BOOT_MNT/userconf.txt"
+# Newer Raspberry Pi OS layouts also mirror firmware under rootfs /boot/firmware.
+if [[ -d "$ROOT_MNT/boot/firmware" ]]; then
+  printf '%s:%s\n' "$PI_USER" "$PI_PASSWORD_HASH" > "$ROOT_MNT/boot/firmware/userconf.txt"
+fi
+
+if [[ "$PI_ENABLE_SSH" == "1" ]]; then
+  echo "==> Enabling SSH on first boot (requested) …"
+  : > "$BOOT_MNT/ssh"
+  if [[ -d "$ROOT_MNT/boot/firmware" ]]; then
+    : > "$ROOT_MNT/boot/firmware/ssh"
   fi
 fi
 
