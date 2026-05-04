@@ -10,7 +10,7 @@
     />
     <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
   </head>
-  <body>
+  <body data-vw-i18n='{{ vw_js | tojson | forceescape }}'>
     <div class="container container-wide">
       <header>
         <div class="brand">
@@ -162,7 +162,6 @@
       <pre id="upd-log" class="upd-log hidden"></pre>
     </div>
 
-    <script>window.VW_I18N = {{ vw_js | tojson }};</script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
   </body>
 </html>

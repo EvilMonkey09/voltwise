@@ -1,6 +1,12 @@
 
 document.addEventListener("DOMContentLoaded", () => {
-  const I = window.VW_I18N || {};
+  let I = {};
+  try {
+    const raw = document.body?.dataset?.vwI18n;
+    if (raw) I = JSON.parse(raw);
+  } catch (_) {
+    I = {};
+  }
   const statusEl = document.getElementById("connection-status");
   const btnCreate = document.getElementById("btn-create-event");
 
