@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import uuid
 from pathlib import Path
 
 _APP_DIR = Path(__file__).resolve().parent
@@ -13,6 +14,7 @@ _VERSION_FILE = _APP_DIR / "VERSION"
 DEFAULTS = {
     "node_name": "",
     "timezone": "Europe/Berlin",
+    "node_id": "",
 }
 
 
@@ -39,7 +41,7 @@ def load() -> dict:
 
 def save(updates: dict) -> dict:
     current = load()
-    for key in ("node_name", "timezone"):
+    for key in ("node_name", "timezone", "node_id"):
         if key in updates and isinstance(updates[key], str):
             current[key] = updates[key].strip()
     p = _path()
@@ -49,6 +51,23 @@ def save(updates: dict) -> dict:
         f.write("\n")
     os.replace(tmp, p)
     return current
+
+
+def stable_node_id() -> str:
+    """Persistent UUID so VoltWise Central can track this Node when its IP changes."""
+    data = load()
+    nid = (data.get("node_id") or "").strip()
+    if nid:
+        return nid
+    nid = str(uuid.uuid4())
+    data["node_id"] = nid
+    p = _path()
+    tmp = p.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    os.replace(tmp, p)
+    return nid
 
 
 def display_name() -> str:

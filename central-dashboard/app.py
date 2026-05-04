@@ -1,4 +1,6 @@
 from flask import Flask, render_template, jsonify, request, Response, g, redirect, url_for
+from urllib.parse import unquote
+
 import logging
 import os
 import platform
@@ -43,6 +45,164 @@ def get_data_dir():
 DATA_DIR = get_data_dir()
 DB_PATH = os.path.join(DATA_DIR, 'dashboard.db')
 LOG_PATH = os.path.join(DATA_DIR, 'debug.log')
+
+NODE_PORT = 25500
+
+
+def fetch_node_info(ip: str) -> dict | None:
+    """GET /api/node/info from a VoltWise Node."""
+    if not _IPV4.match(ip or ""):
+        return None
+    try:
+        r = requests.get(f"http://{ip}:{NODE_PORT}/api/node/info", timeout=4)
+        if r.status_code == 200:
+            return r.json()
+    except requests.RequestException:
+        pass
+    return None
+
+
+def _nodes_columns(conn) -> set[str]:
+    c = conn.cursor()
+    c.execute("PRAGMA table_info(nodes)")
+    return {row[1] for row in c.fetchall()}
+
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cols = _nodes_columns(conn)
+    if not cols:
+        conn.cursor().execute(
+            """CREATE TABLE nodes (
+                node_id TEXT PRIMARY KEY,
+                ip TEXT NOT NULL UNIQUE,
+                hostname TEXT,
+                last_seen REAL,
+                status TEXT,
+                node_label TEXT,
+                remote_name TEXT
+            )"""
+        )
+        conn.commit()
+        conn.close()
+        return
+
+    if "node_id" not in cols:
+        c = conn.cursor()
+        c.execute(
+            "SELECT ip, hostname, last_seen, status, node_label FROM nodes",
+        )
+        old_rows = c.fetchall()
+        c.execute("DROP TABLE nodes")
+        c.execute(
+            """CREATE TABLE nodes (
+                node_id TEXT PRIMARY KEY,
+                ip TEXT NOT NULL UNIQUE,
+                hostname TEXT,
+                last_seen REAL,
+                status TEXT,
+                node_label TEXT,
+                remote_name TEXT
+            )"""
+        )
+        for row in old_rows:
+            ip, hostname, last_seen, status, node_label = (
+                row[0],
+                row[1] or "",
+                row[2],
+                row[3] or "offline",
+                row[4] if len(row) > 4 else None,
+            )
+            nid = f"legacy-{ip}"
+            c.execute(
+                """INSERT INTO nodes (node_id, ip, hostname, last_seen, status, node_label, remote_name)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (nid, ip, hostname, last_seen, status, node_label, None),
+            )
+        conn.commit()
+    else:
+        for col in ("remote_name",):
+            try:
+                conn.cursor().execute(f"ALTER TABLE nodes ADD COLUMN {col} TEXT")
+            except sqlite3.OperationalError:
+                pass
+        conn.commit()
+    conn.close()
+
+
+def upsert_node_from_network(
+    ip: str,
+    hostname_guess: str | None,
+    info: dict | None,
+    status: str = "online",
+) -> None:
+    """Insert or update a node; stable key is node_id from the Node."""
+    if not _IPV4.match(ip or ""):
+        return
+    info = info or {}
+    nid = (info.get("node_id") or "").strip()
+    if not nid:
+        nid = f"legacy-{ip}"
+    remote = (info.get("display_name") or info.get("node_name") or "").strip()
+    host = (hostname_guess or "").strip() or remote or ""
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    now = time.time()
+
+    c.execute("DELETE FROM nodes WHERE ip = ? AND node_id != ?", (ip, nid))
+
+    legacy = f"legacy-{ip}"
+    if nid != legacy:
+        c.execute("SELECT node_id FROM nodes WHERE node_id = ?", (legacy,))
+        if c.fetchone():
+            c.execute("SELECT 1 FROM nodes WHERE node_id = ?", (nid,))
+            if c.fetchone():
+                c.execute("DELETE FROM nodes WHERE node_id = ?", (nid,))
+            row = c.execute(
+                "SELECT node_label, hostname FROM nodes WHERE node_id = ?",
+                (legacy,),
+            ).fetchone()
+            preserved_label = row[0] if row else None
+            preserved_host = (row[1] if row else "") or host
+            c.execute("DELETE FROM nodes WHERE node_id = ?", (legacy,))
+            c.execute(
+                """INSERT INTO nodes (node_id, ip, hostname, last_seen, status, node_label, remote_name)
+                   VALUES (?,?,?,?,?,?,?)
+                   ON CONFLICT(node_id) DO UPDATE SET
+                     ip = excluded.ip,
+                     hostname = excluded.hostname,
+                     last_seen = excluded.last_seen,
+                     status = excluded.status,
+                     remote_name = excluded.remote_name""",
+                (
+                    nid,
+                    ip,
+                    preserved_host or host,
+                    now,
+                    status,
+                    preserved_label,
+                    remote or None,
+                ),
+            )
+            conn.commit()
+            conn.close()
+            return
+
+    c.execute(
+        """INSERT INTO nodes (node_id, ip, hostname, last_seen, status, node_label, remote_name)
+           VALUES (?,?,?,?,?,?,?)
+           ON CONFLICT(node_id) DO UPDATE SET
+             ip = excluded.ip,
+             hostname = excluded.hostname,
+             last_seen = excluded.last_seen,
+             status = excluded.status,
+             remote_name = excluded.remote_name""",
+        (nid, ip, host, now, status, None, remote or None),
+    )
+    conn.commit()
+    conn.close()
+
 
 try:
     logging.basicConfig(
@@ -137,39 +297,52 @@ if getattr(sys, 'frozen', False):
     app.static_folder = resource_path('static')
 
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        """CREATE TABLE IF NOT EXISTS nodes 
-                 (ip TEXT PRIMARY KEY, hostname TEXT, last_seen REAL, status TEXT, node_label TEXT)"""
-    )
-    for col in ("node_label",):
-        try:
-            c.execute(f"ALTER TABLE nodes ADD COLUMN {col} TEXT")
-        except sqlite3.OperationalError:
-            pass
-    conn.commit()
-    conn.close()
-
-
 def node_health_loop():
     while True:
         try:
             conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
             c = conn.cursor()
-            c.execute("SELECT ip FROM nodes")
-            ips = [row[0] for row in c.fetchall()]
+            c.execute("SELECT node_id, ip FROM nodes")
+            rows = c.fetchall()
             now = time.time()
-            for ip in ips:
+            for row in rows:
+                nid = row["node_id"]
+                ip = row["ip"]
+                ok = False
+                inf = None
                 try:
-                    r = requests.get(f"http://{ip}:25500/api/data", timeout=2)
+                    r = requests.get(f"http://{ip}:{NODE_PORT}/api/data", timeout=2)
                     ok = r.status_code == 200
                 except requests.RequestException:
                     ok = False
+                if ok:
+                    inf = fetch_node_info(ip)
+                    ni = (inf or {}).get("node_id") or ""
+                    ni = ni.strip() if isinstance(ni, str) else ""
+                    if ni and ni != nid:
+                        upsert_node_from_network(ip, None, inf, "online")
+                        continue
+                remote = None
+                new_host = None
+                if inf:
+                    remote = (
+                        (inf.get("display_name") or inf.get("node_name") or "").strip()
+                        or None
+                    )
+                    new_host = remote
                 c.execute(
-                    "UPDATE nodes SET last_seen = ?, status = ? WHERE ip = ?",
-                    (now, "online" if ok else "offline", ip),
+                    """UPDATE nodes SET last_seen = ?, status = ?,
+                       remote_name = COALESCE(?, remote_name),
+                       hostname = COALESCE(?, hostname)
+                       WHERE node_id = ?""",
+                    (
+                        now,
+                        "online" if ok else "offline",
+                        remote,
+                        new_host,
+                        nid,
+                    ),
                 )
             conn.commit()
             conn.close()
@@ -204,8 +377,18 @@ def api_app_update_status():
     return jsonify(out)
 
 
-@app.route('/api/nodes', methods=['GET'])
-def get_nodes():
+@app.route("/api/nodes", methods=["GET", "POST"])
+def api_nodes_list():
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        ip = (data.get("ip") or "").strip()
+        if not _IPV4.match(ip):
+            return jsonify({"ok": False, "error": "invalid_ip"}), 400
+        inf = fetch_node_info(ip)
+        if not inf:
+            return jsonify({"ok": False, "error": "unreachable"}), 502
+        upsert_node_from_network(ip, None, inf, "online")
+        return jsonify({"ok": True})
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -215,32 +398,30 @@ def get_nodes():
     conn.close()
     return jsonify(nodes)
 
+
 @app.route('/api/discover', methods=['POST'])
 def discover():
-    # Run scan in background or wait? 
-    # For better UX, we'll run it synchronously for now (up to few seconds) or return "started"
-    # Let's do a quick scan.
-    found_nodes = scan_network() 
-    
+    found_nodes = scan_network()
+    count = 0
+    for node in found_nodes:
+        ip = node["ip"]
+        inf = fetch_node_info(ip) or {}
+        if not inf.get("node_id") and node.get("node_id"):
+            inf["node_id"] = node["node_id"]
+        upsert_node_from_network(ip, node.get("hostname"), inf, "online")
+        count += 1
+    return jsonify({"success": True, "count": count, "nodes": found_nodes})
+
+
+@app.route("/api/nodes/<path:nid>", methods=["DELETE"])
+def delete_node(nid):
+    nid = unquote(nid)
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    count = 0
-    timestamp = time.time()
-    for node in found_nodes:
-        c.execute(
-            """INSERT INTO nodes (ip, hostname, last_seen, status)
-               VALUES (?, ?, ?, ?)
-               ON CONFLICT(ip) DO UPDATE SET
-                 hostname = excluded.hostname,
-                 last_seen = excluded.last_seen,
-                 status = excluded.status""",
-            (node["ip"], node.get("hostname", "Unknown"), timestamp, "online"),
-        )
-        count += 1
+    c.execute("DELETE FROM nodes WHERE node_id = ?", (nid,))
     conn.commit()
     conn.close()
-    
-    return jsonify({"success": True, "count": count, "nodes": found_nodes})
+    return jsonify({"ok": True})
 
 def _proxy_to_node(ip: str, subpath: str):
     if not _IPV4.match(ip or ""):
@@ -249,7 +430,7 @@ def _proxy_to_node(ip: str, subpath: str):
     if request.query_string:
         url += f"?{request.query_string.decode('utf-8')}"
     try:
-        resp = requests.get(url, timeout=15, stream=False)
+        resp = requests.get(url, timeout=6, stream=False)
     except requests.RequestException as e:
         return jsonify({"error": str(e)}), 502
     excluded = {"content-encoding", "content-length", "transfer-encoding", "connection"}
@@ -270,13 +451,14 @@ def proxy_request(ip, endpoint):
     return _proxy_to_node(ip, endpoint)
 
 
-@app.route("/api/nodes/<ip>/label", methods=["PUT"])
-def set_node_label(ip):
+@app.route("/api/nodes/<path:nid>/label", methods=["PUT"])
+def set_node_label(nid):
+    nid = unquote(nid)
     data = request.get_json(silent=True) or {}
     label = (data.get("label") or "").strip() or None
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("UPDATE nodes SET node_label = ? WHERE ip = ?", (label, ip))
+    c.execute("UPDATE nodes SET node_label = ? WHERE node_id = ?", (label, nid))
     conn.commit()
     conn.close()
     return jsonify({"success": True})
@@ -298,12 +480,12 @@ def start_recording_all():
         ip = row[0]
         try:
             # 1. Create Event on Node
-            create_url = f"http://{ip}:25500/api/events"
+            create_url = f"http://{ip}:{NODE_PORT}/api/events"
             r1 = requests.post(create_url, json={"name": event_name}, timeout=3)
             if r1.status_code == 200:
                 event_id = r1.json().get('event_id')
                 # 2. Start Recording
-                start_url = f"http://{ip}:25500/api/recording/start"
+                start_url = f"http://{ip}:{NODE_PORT}/api/recording/start"
                 requests.post(start_url, json={"event_id": event_id}, timeout=3)
                 results.append({"ip": ip, "status": "started"})
             else:
@@ -324,8 +506,8 @@ def stop_recording_all():
     for row in nodes:
         ip = row[0]
         try:
-            requests.post(f"http://{ip}:25500/api/recording/stop", timeout=2)
-            requests.post(f"http://{ip}:25500/api/events/stop", timeout=2)
+            requests.post(f"http://{ip}:{NODE_PORT}/api/recording/stop", timeout=2)
+            requests.post(f"http://{ip}:{NODE_PORT}/api/events/stop", timeout=2)
         except:
             pass
     return jsonify({"success": True})

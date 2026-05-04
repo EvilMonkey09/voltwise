@@ -89,6 +89,136 @@ h1 {
   margin: 0;
 }
 
+.vw-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 6px;
+  background: var(--vw-surface);
+  border: 1px solid var(--vw-border);
+  border-radius: var(--vw-radius);
+}
+
+.vw-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--vw-muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.vw-tab:hover {
+  color: var(--vw-text);
+  background: var(--vw-bg);
+}
+
+.vw-tab.active {
+  background: #e8efff;
+  color: var(--vw-accent);
+  border-color: rgba(37, 99, 235, 0.25);
+}
+
+.vw-tab-panel {
+  margin-bottom: 8px;
+}
+
+.vw-tab-panel > section:first-child h2 {
+  margin-top: 0;
+}
+
+.live-charts {
+  margin-top: 28px;
+}
+
+.detail-stats-section {
+  margin-bottom: 24px;
+}
+
+.detail-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.detail-sensor-card {
+  background: var(--vw-surface);
+  border: 1px solid var(--vw-border);
+  border-radius: var(--vw-radius);
+  padding: 16px;
+}
+
+.detail-sensor-card h3 {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--vw-text);
+}
+
+.detail-metric-block {
+  margin-bottom: 14px;
+}
+
+.detail-metric-block:last-child {
+  margin-bottom: 0;
+}
+
+.detail-metric-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vw-muted);
+  margin-bottom: 8px;
+}
+
+.detail-stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.detail-stat-row span {
+  display: block;
+}
+
+.detail-stat-row .lbl {
+  color: var(--vw-muted);
+  font-size: 0.76rem;
+  margin-bottom: 2px;
+}
+
+.detail-stat-row .val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.chart-canvas-analysis {
+  height: 280px;
+}
+
+.chart-canvas-analysis-wide {
+  height: 320px;
+}
+
+@media (min-width: 900px) {
+  .chart-canvas-analysis {
+    height: 300px;
+  }
+  .chart-canvas-analysis-wide {
+    height: 360px;
+  }
+}
+
 .demo-banner {
   margin: 0 0 20px;
   padding: 12px 16px;
@@ -242,9 +372,19 @@ input.edit-name-input {
   .charts-grid-wide {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .chart-card-span {
+  .charts-grid-wide .chart-card-span {
     grid-column: 1 / -1;
   }
+}
+
+/* Stacked full-width charts (Live tab: U, I, P); must win over .charts-grid */
+.charts-grid.charts-grid-fullwidth {
+  grid-template-columns: 1fr;
+  width: 100%;
+}
+
+.charts-grid.charts-grid-fullwidth .chart-card-span {
+  grid-column: 1 / -1;
 }
 
 .chart-canvas-wrap {

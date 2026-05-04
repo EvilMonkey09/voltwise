@@ -10,7 +10,10 @@
     />
     <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
   </head>
-  <body data-vw-i18n='{{ vw_js | tojson | forceescape }}'>
+  <body
+    data-vw-i18n='{{ vw_js | tojson | forceescape }}'
+    data-sensor-addresses='{{ sensors | tojson | forceescape }}'
+  >
     <div class="container container-wide">
       <header>
         <div class="brand">
@@ -32,116 +35,163 @@
         <strong>{{ t('index.demo_label') }}:</strong> {{ t('index.demo_body') }}
       </p>
 
-      <section class="live-data">
-        <h2>{{ t('index.live_measurements') }}</h2>
-        <p class="section-lead">{{ t('index.live_lead') }}</p>
+      <nav class="vw-tabs" role="tablist" aria-label="Dashboard">
+        <button
+          type="button"
+          class="vw-tab active"
+          role="tab"
+          id="tab-live"
+          aria-selected="true"
+          aria-controls="panel-live"
+          tabindex="0"
+        >
+          {{ t('index.tab.live') }}
+        </button>
+        <button
+          type="button"
+          class="vw-tab"
+          role="tab"
+          id="tab-details"
+          aria-selected="false"
+          aria-controls="panel-details"
+          tabindex="-1"
+        >
+          {{ t('index.tab.details') }}
+        </button>
+      </nav>
 
-        <div class="table-responsive live-table-wrap">
-          <table class="live-table">
-            <thead>
-              <tr>
-                <th scope="col">{{ t('index.table.sensor') }}</th>
-                <th scope="col" class="num-col">U<br /><span class="th-unit">V</span></th>
-                <th scope="col" class="num-col">I<br /><span class="th-unit">A</span></th>
-                <th scope="col" class="num-col">P<br /><span class="th-unit">W</span></th>
-                <th scope="col" class="num-col">E<br /><span class="th-unit">Wh</span></th>
-                <th scope="col" class="num-col">f<br /><span class="th-unit">Hz</span></th>
-                <th scope="col" class="num-col">PF</th>
-                <th scope="col" class="action-col">{{ t('index.table.reset') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for address in sensors %}
-              <tr id="row-{{ address }}">
-                <th scope="row" class="sensor-label">
-                  <span class="sensor-phase">L{{ loop.index }}</span>
-                  <span class="sensor-addr">addr&nbsp;{{ address }}</span>
-                </th>
-                <td class="num" id="voltage-{{ address }}">—</td>
-                <td class="num" id="current-{{ address }}">—</td>
-                <td class="num num-strong" id="power-{{ address }}">—</td>
-                <td class="num" id="energy-{{ address }}">—</td>
-                <td class="num" id="frequency-{{ address }}">—</td>
-                <td class="num" id="pf-{{ address }}">—</td>
-                <td class="action-cell">
-                  <button
-                    type="button"
-                    class="btn-icon reset-btn"
-                    data-address="{{ address }}"
-                    title="{{ t('index.reset_title') }}"
-                    aria-label="{{ t('index.reset_aria') }}"
-                  >
-                    ↺
-                  </button>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+      <div
+        id="panel-live"
+        class="vw-tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-live"
+      >
+        <section class="live-data">
+          <h2>{{ t('index.live_measurements') }}</h2>
+          <p class="section-lead">{{ t('index.live_lead') }}</p>
 
-        <div class="live-summary-bar">
-          <div class="summary-item">
-            <span class="summary-label">{{ t('index.summary.power') }}</span>
-            <span class="summary-value" id="total-power">—</span>
-            <span class="summary-unit">W</span>
+          <div class="table-responsive live-table-wrap">
+            <table class="live-table">
+              <thead>
+                <tr>
+                  <th scope="col">{{ t('index.table.sensor') }}</th>
+                  <th scope="col" class="num-col">U<br /><span class="th-unit">V</span></th>
+                  <th scope="col" class="num-col">I<br /><span class="th-unit">A</span></th>
+                  <th scope="col" class="num-col">P<br /><span class="th-unit">W</span></th>
+                  <th scope="col" class="num-col">E<br /><span class="th-unit">Wh</span></th>
+                  <th scope="col" class="num-col">f<br /><span class="th-unit">Hz</span></th>
+                  <th scope="col" class="num-col">PF</th>
+                  <th scope="col" class="action-col">{{ t('index.table.reset') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for address in sensors %}
+                <tr id="row-{{ address }}">
+                  <th scope="row" class="sensor-label">
+                    <span class="sensor-phase">L{{ loop.index }}</span>
+                    <span class="sensor-addr">addr&nbsp;{{ address }}</span>
+                  </th>
+                  <td class="num" id="voltage-{{ address }}">—</td>
+                  <td class="num" id="current-{{ address }}">—</td>
+                  <td class="num num-strong" id="power-{{ address }}">—</td>
+                  <td class="num" id="energy-{{ address }}">—</td>
+                  <td class="num" id="frequency-{{ address }}">—</td>
+                  <td class="num" id="pf-{{ address }}">—</td>
+                  <td class="action-cell">
+                    <button
+                      type="button"
+                      class="btn-icon reset-btn"
+                      data-address="{{ address }}"
+                      title="{{ t('index.reset_title') }}"
+                      aria-label="{{ t('index.reset_aria') }}"
+                    >
+                      ↺
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
           </div>
-          {% if sensors|length == 3 %}
-          <div class="summary-item summary-neutral">
-            <span class="summary-label">{{ t('index.summary.neutral') }}</span>
-            <span class="summary-value" id="neutral-current">—</span>
-            <span class="summary-unit">A</span>
-          </div>
-          {% endif %}
-        </div>
-      </section>
 
-      <section class="live-charts">
-        <h2>{{ t('index.charts.title') }}</h2>
-        <p class="section-lead">{{ t('index.charts.lead') }}</p>
-        <div class="dashboard-grid charts-grid charts-grid-wide">
-          <div class="card chart-card">
-            <h3>{{ t('index.chart_voltage') }}</h3>
-            <div class="chart-canvas-wrap">
-              <canvas id="chart-live-voltage"></canvas>
+          <div class="live-summary-bar">
+            <div class="summary-item">
+              <span class="summary-label">{{ t('index.summary.power') }}</span>
+              <span class="summary-value" id="total-power">—</span>
+              <span class="summary-unit">W</span>
+            </div>
+            {% if sensors|length == 3 %}
+            <div class="summary-item summary-neutral">
+              <span class="summary-label">{{ t('index.summary.neutral') }}</span>
+              <span class="summary-value" id="neutral-current">—</span>
+              <span class="summary-unit">A</span>
+            </div>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="live-charts">
+          <h2>{{ t('index.charts.title') }}</h2>
+          <p class="section-lead">{{ t('index.charts.lead') }}</p>
+          <div class="dashboard-grid charts-grid charts-grid-fullwidth">
+            <div class="card chart-card chart-card-span">
+              <h3>{{ t('index.chart_voltage') }}</h3>
+              <div class="chart-canvas-wrap chart-canvas-tall chart-canvas-analysis-wide">
+                <canvas id="chart-live-voltage"></canvas>
+              </div>
+            </div>
+            <div class="card chart-card chart-card-span">
+              <h3>{{ t('index.chart_current') }}</h3>
+              <div class="chart-canvas-wrap chart-canvas-tall chart-canvas-analysis-wide">
+                <canvas id="chart-live-current"></canvas>
+              </div>
+            </div>
+            <div class="card chart-card chart-card-span">
+              <h3>{{ t('index.chart_power') }}</h3>
+              <div class="chart-canvas-wrap chart-canvas-tall chart-canvas-analysis-wide">
+                <canvas id="chart-live-power"></canvas>
+              </div>
             </div>
           </div>
-          <div class="card chart-card">
-            <h3>{{ t('index.chart_current') }}</h3>
-            <div class="chart-canvas-wrap">
-              <canvas id="chart-live-current"></canvas>
-            </div>
-          </div>
-          <div class="card chart-card chart-card-span">
-            <h3>{{ t('index.chart_power') }}</h3>
-            <div class="chart-canvas-wrap chart-canvas-tall">
-              <canvas id="chart-live-power"></canvas>
-            </div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="history-section">
-        <div class="section-header">
-          <h2>{{ t('index.events.title') }}</h2>
-          <button id="btn-create-event" class="btn primary">{{ t('index.events.create') }}</button>
-        </div>
+        <section class="history-section">
+          <div class="section-header">
+            <h2>{{ t('index.events.title') }}</h2>
+            <button id="btn-create-event" class="btn primary">{{ t('index.events.create') }}</button>
+          </div>
 
-        <div class="table-responsive">
-          <table id="events-table">
-            <thead>
-              <tr>
-                <th>{{ t('index.events.th_name') }}</th>
-                <th>{{ t('index.events.th_start') }}</th>
-                <th>{{ t('index.events.th_duration') }}</th>
-                <th>{{ t('index.events.th_status') }}</th>
-                <th>{{ t('index.events.th_actions') }}</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
+          <div class="table-responsive">
+            <table id="events-table">
+              <thead>
+                <tr>
+                  <th>{{ t('index.events.th_name') }}</th>
+                  <th>{{ t('index.events.th_start') }}</th>
+                  <th>{{ t('index.events.th_duration') }}</th>
+                  <th>{{ t('index.events.th_status') }}</th>
+                  <th>{{ t('index.events.th_actions') }}</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <div
+        id="panel-details"
+        class="vw-tab-panel hidden"
+        role="tabpanel"
+        aria-labelledby="tab-details"
+        hidden
+      >
+        <section class="detail-stats-section">
+          <h2>{{ t('index.details.title') }}</h2>
+          <p class="section-lead">{{ t('index.details.lead') }}</p>
+          <div id="detail-stats-grid" class="detail-stats-grid"></div>
+        </section>
+      </div>
+
     </div>
 
     <div id="update-backdrop" class="modal-backdrop hidden" aria-hidden="true"></div>

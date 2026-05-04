@@ -56,12 +56,17 @@ def main():
         nonlocal portal_proc
         stop_portal()
         exe = sys.executable
+        env = os.environ.copy()
+        gw = nm_helpers.ipv4_on_device(wlan)
+        if gw:
+            env["VOLTWISE_CAPTIVE_GATEWAY_IP"] = gw
         portal_proc = subprocess.Popen(
             [exe, "-m", "voltwise_network.portal_main"],
             cwd=node_root,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            env=env,
         )
 
     boot_until = time.time() + BOOT_GRACE_SEC
@@ -77,6 +82,8 @@ def main():
     try:
         while True:
             now = time.time()
+            # Prefer LAN over Wi‑Fi: one radio address so Central does not list the node twice.
+            nm_helpers.apply_ethernet_preferred_wifi_policy()
             connected = nm_helpers.has_real_connectivity()
 
             # One line when *state kind* changes — no ERROR, but explains missing AP (e.g. false uplink).

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ t('browser_title') }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='chart.min.js') }}"></script>
 </head>
 <body>
     <header class="topbar">
@@ -25,7 +26,20 @@
 
     <p id="loading" class="loading hidden" role="status">{{ t('loading.scanning') }}</p>
 
+    <section class="add-node-bar" aria-label="{{ t('grid.add_heading') }}">
+        <span class="add-node-label">{{ t('grid.add_heading') }}</span>
+        <input type="text" id="add-node-ip" class="add-node-input" inputmode="numeric" autocomplete="off" placeholder="{{ t('grid.add_ip_placeholder') }}" aria-label="{{ t('grid.add_ip_placeholder') }}">
+        <button type="button" class="btn btn-primary btn-sm" id="btn-add-node">{{ t('grid.add_btn') }}</button>
+        <span id="add-node-msg" class="add-node-msg muted" role="status"></span>
+    </section>
+
     <div id="grid" class="grid"></div>
+
+    <section id="chart-arena-section" class="chart-arena-section">
+        <h2 class="chart-arena-heading">{{ t('charts.arena_title') }}</h2>
+        <p class="chart-arena-hint muted">{{ t('charts.arena_hint') }}</p>
+        <div id="chart-arena" class="chart-arena"></div>
+    </section>
 
     <div id="modal-backdrop" class="modal-backdrop hidden" aria-hidden="true"></div>
     <div id="modal" class="modal hidden" role="dialog" aria-labelledby="modal-title">
@@ -59,6 +73,252 @@
         const C = window.VW_CENTRAL || {};
         let isRecording = false;
         let modalResolve = null;
+
+        const MAX_CENTRAL_POINTS = 160;
+        const PHASE_COLORS = ['#dc2626', '#2563eb', '#ca8a04'];
+        const FETCH_MS = 4500;
+
+        /** @type {Map<string, { el: HTMLElement, charts: { voltage: any, current: any, power: any } }>} */
+        const centralCharts = new Map();
+        let lastNodePayload = {};
+
+        function phaseName(idx) {
+            const tpl = C.phase_label || 'L{phase}';
+            return tpl.replace(/\{phase\}/g, String(idx + 1));
+        }
+
+        function chartKey(ip, addr) {
+            return ip + ':' + addr;
+        }
+
+        function safeIp(ip) {
+            return String(ip).replace(/\./g, '-');
+        }
+
+        function baseChartOpts(yUnit) {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { mode: 'index', intersect: false },
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        ticks: { maxTicksLimit: 6, maxRotation: 0, font: { size: 10 } },
+                        grid: { display: false },
+                    },
+                    y: {
+                        beginAtZero: false,
+                        grace: '10%',
+                        ticks: { font: { size: 10 } },
+                        title: {
+                            display: true,
+                            text: yUnit,
+                            font: { size: 10 },
+                        },
+                    },
+                },
+                elements: { point: { radius: 0, hoverRadius: 3 } },
+            };
+        }
+
+        function destroyAllCentralCharts() {
+            centralCharts.forEach((ctx) => {
+                try {
+                    ctx.charts.voltage?.destroy();
+                    ctx.charts.current?.destroy();
+                    ctx.charts.power?.destroy();
+                } catch (e) { /* ignore */ }
+                ctx.el?.remove();
+            });
+            centralCharts.clear();
+        }
+
+        function appendPoint(chart, label, y) {
+            if (!chart) return;
+            if (chart.data.labels.length > MAX_CENTRAL_POINTS) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+            }
+            chart.data.labels.push(label);
+            chart.data.datasets[0].data.push(y == null || Number.isNaN(Number(y)) ? null : Number(y));
+            chart.update('none');
+        }
+
+        function updateArenaVisibility() {
+            const sec = document.getElementById('chart-arena-section');
+            if (!sec) return;
+            sec.classList.toggle('chart-arena-empty', centralCharts.size === 0);
+        }
+
+        function removeCentralSensorChart(ip, addr) {
+            const key = chartKey(ip, addr);
+            const ctx = centralCharts.get(key);
+            if (ctx) {
+                try {
+                    ctx.charts.voltage?.destroy();
+                    ctx.charts.current?.destroy();
+                    ctx.charts.power?.destroy();
+                } catch (e) { /* ignore */ }
+                ctx.el.remove();
+                centralCharts.delete(key);
+            }
+            document.querySelectorAll('.sensor-chart-toggle[data-chart-key="' + key + '"]').forEach((b) => {
+                b.setAttribute('aria-pressed', 'false');
+                b.textContent = C.sensor_chart_show || 'Chart';
+            });
+            updateArenaVisibility();
+        }
+
+        function addCentralSensorChart(ip, addr, phaseIdx, nodeTitle) {
+            const key = chartKey(ip, addr);
+            if (centralCharts.has(key)) return;
+
+            const arena = document.getElementById('chart-arena');
+            if (!arena || typeof Chart === 'undefined') return;
+
+            const color = PHASE_COLORS[phaseIdx % PHASE_COLORS.length];
+            const sid = safeIp(ip) + '-' + addr;
+            const panel = document.createElement('div');
+            panel.className = 'sensor-chart-panel';
+            panel.dataset.chartKey = key;
+            const head = document.createElement('div');
+            head.className = 'sensor-chart-panel-head';
+            const lab = phaseName(phaseIdx);
+            head.innerHTML =
+                '<h3 class="sensor-chart-panel-title">' +
+                escapeHtml(nodeTitle) +
+                ' · ' +
+                escapeHtml(lab) +
+                ' · addr ' +
+                escapeHtml(String(addr)) +
+                '</h3>';
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'btn btn-ghost btn-sm sensor-chart-close';
+            closeBtn.textContent = C.sensor_chart_close || 'Remove';
+            closeBtn.addEventListener('click', () => removeCentralSensorChart(ip, addr));
+            head.appendChild(closeBtn);
+            panel.appendChild(head);
+
+            const grid = document.createElement('div');
+            grid.className = 'sensor-chart-panel-grid';
+
+            ['voltage', 'current', 'power'].forEach((kind) => {
+                const wrap = document.createElement('div');
+                wrap.className = 'central-mini-chart';
+                const cap = document.createElement('div');
+                cap.className = 'central-mini-chart-cap';
+                cap.textContent =
+                    kind === 'voltage'
+                        ? (C.live_voltage || 'U')
+                        : kind === 'current'
+                          ? (C.live_current || 'I')
+                          : (C.live_power || 'P');
+                const cv = document.createElement('canvas');
+                cv.id = 'cw-' + sid + '-' + kind[0];
+                wrap.appendChild(cap);
+                wrap.appendChild(cv);
+                grid.appendChild(wrap);
+            });
+
+            panel.appendChild(grid);
+            arena.appendChild(panel);
+
+            const ctxV = document.getElementById('cw-' + sid + '-v').getContext('2d');
+            const ctxI = document.getElementById('cw-' + sid + '-c').getContext('2d');
+            const ctxP = document.getElementById('cw-' + sid + '-p').getContext('2d');
+
+            const charts = {
+                voltage: new Chart(ctxV, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                label: lab,
+                                data: [],
+                                borderColor: color,
+                                borderWidth: 2,
+                                tension: 0.2,
+                            },
+                        ],
+                    },
+                    options: baseChartOpts('V'),
+                }),
+                current: new Chart(ctxI, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                label: lab,
+                                data: [],
+                                borderColor: color,
+                                borderWidth: 2,
+                                tension: 0.2,
+                            },
+                        ],
+                    },
+                    options: baseChartOpts('A'),
+                }),
+                power: new Chart(ctxP, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            {
+                                label: lab,
+                                data: [],
+                                borderColor: color,
+                                borderWidth: 2,
+                                tension: 0.2,
+                            },
+                        ],
+                    },
+                    options: baseChartOpts('W'),
+                }),
+            };
+
+            centralCharts.set(key, { el: panel, charts });
+            updateArenaVisibility();
+            updateAllCentralChartsFromPayloads();
+        }
+
+        function pushSensorSampleToCharts(key, data, addr) {
+            const ctx = centralCharts.get(key);
+            if (!ctx) return;
+            const s = data.sensors[addr];
+            if (!s) return;
+            const label = new Date(data.timestamp * 1000).toLocaleTimeString();
+            appendPoint(ctx.charts.voltage, label, s.voltage);
+            appendPoint(ctx.charts.current, label, s.current);
+            appendPoint(ctx.charts.power, label, s.power);
+        }
+
+        function updateAllCentralChartsFromPayloads() {
+            centralCharts.forEach((_, key) => {
+                const colon = key.indexOf(':');
+                const ip = key.slice(0, colon);
+                const addr = Number(key.slice(colon + 1));
+                const d = lastNodePayload[ip];
+                if (d && d.sensors && d.sensors[addr]) {
+                    pushSensorSampleToCharts(key, d, addr);
+                }
+            });
+        }
+
+        function escapeHtml(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
 
         function showModal(title, placeholder, initial) {
             document.getElementById('modal-title').textContent = title;
@@ -106,9 +366,9 @@
             return String(v) + (unit || '');
         }
 
-        function buildLiveContent(d) {
+        function buildCompactLive(node, d) {
             const root = document.createElement('div');
-            root.className = 'live-inner';
+            root.className = 'live-inner-compact';
             if (d.simulation) {
                 const sim = document.createElement('p');
                 sim.className = 'sim-banner';
@@ -119,98 +379,139 @@
             const addrs = Object.keys(sensors)
                 .map((k) => Number(k))
                 .sort((a, b) => a - b);
-            const grid = document.createElement('div');
-            grid.className = 'phase-grid';
-            for (const addr of addrs) {
-                const s = sensors[addr];
-                const card = document.createElement('div');
-                card.className = 'phase-card';
-                const h = document.createElement('h4');
-                h.textContent = (C.live_sensor_heading || 'Sensor') + ' ' + addr;
-                card.appendChild(h);
-                if (!s) {
-                    const p = document.createElement('p');
-                    p.className = 'muted';
-                    p.textContent = C.live_no_data || '';
-                    card.appendChild(p);
-                    grid.appendChild(card);
-                    continue;
-                }
-                const dl = document.createElement('dl');
-                dl.className = 'metric-dl';
-                const rows = [
-                    [C.live_voltage, fmtVal(s.voltage, ' V')],
-                    [C.live_current, fmtVal(s.current, ' A')],
-                    [C.live_power, fmtVal(s.power, ' W')],
-                    [C.live_energy, fmtVal(s.energy, ' Wh')],
-                    [C.live_frequency, fmtVal(s.frequency, ' Hz')],
-                    [C.live_pf, fmtVal(s.pf, '')],
-                ];
-                rows.forEach(([label, val]) => {
-                    const row = document.createElement('div');
-                    const dt = document.createElement('dt');
-                    dt.textContent = label;
-                    const dd = document.createElement('dd');
-                    dd.textContent = val;
-                    row.appendChild(dt);
-                    row.appendChild(dd);
-                    dl.appendChild(row);
-                });
-                card.appendChild(dl);
-                grid.appendChild(card);
-            }
-            root.appendChild(grid);
+
+            const kpi = document.createElement('div');
+            kpi.className = 'node-kpi-row';
+            let totalP = 0;
+            addrs.forEach((a) => {
+                const s = sensors[a];
+                if (s && typeof s.power === 'number') totalP += s.power;
+            });
+            const tp = document.createElement('div');
+            tp.className = 'kpi-pill kpi-primary';
+            tp.innerHTML =
+                '<span class="kpi-l">' +
+                escapeHtml(C.grid_total_power || 'Σ P') +
+                '</span>' +
+                '<span class="kpi-v">' +
+                fmtVal(totalP.toFixed(1), ' W') +
+                '</span>';
+            kpi.appendChild(tp);
+
             if (
+                addrs.length === 3 &&
                 d.neutral_current != null &&
-                d.neutral_current !== '' &&
-                addrs.length === 3
+                d.neutral_current !== ''
             ) {
-                const nr = document.createElement('div');
-                nr.className = 'neutral-row';
-                nr.innerHTML =
-                    '<span>' +
-                    (C.live_neutral || '') +
-                    '</span><span>' +
+                const neu = document.createElement('div');
+                neu.className = 'kpi-pill';
+                neu.innerHTML =
+                    '<span class="kpi-l">' +
+                    escapeHtml(C.grid_neutral || 'IN') +
+                    '</span>' +
+                    '<span class="kpi-v">' +
                     Number(d.neutral_current).toFixed(3) +
                     ' A</span>';
-                root.appendChild(nr);
+                kpi.appendChild(neu);
             }
+            root.appendChild(kpi);
+
+            const toggleRow = document.createElement('div');
+            toggleRow.className = 'sensor-toggle-row';
+            addrs.forEach((addr, idx) => {
+                const key = chartKey(node.ip, addr);
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-ghost btn-sm sensor-chart-toggle';
+                btn.dataset.chartKey = key;
+                btn.dataset.ip = node.ip;
+                btn.dataset.addr = String(addr);
+                btn.dataset.phaseIdx = String(idx);
+                const on = centralCharts.has(key);
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                btn.textContent = on
+                    ? (C.sensor_chart_hide || 'Hide')
+                    : (C.sensor_chart_show || 'Chart');
+                const lab = phaseName(idx);
+                btn.title = lab + ' · addr ' + addr;
+                btn.addEventListener('click', () => {
+                    const pressed = btn.getAttribute('aria-pressed') === 'true';
+                    if (pressed) {
+                        removeCentralSensorChart(node.ip, addr);
+                    } else {
+                        const title = cardDisplayTitle(node);
+                        addCentralSensorChart(node.ip, addr, idx, title);
+                        btn.setAttribute('aria-pressed', 'true');
+                        btn.textContent = C.sensor_chart_hide || 'Hide';
+                    }
+                });
+                toggleRow.appendChild(btn);
+            });
+            root.appendChild(toggleRow);
             return root;
+        }
+
+        async function fetchNodeData(ip) {
+            const path =
+                '/api/proxy/' + encodeURIComponent(ip) + '/api/data';
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), FETCH_MS);
+            try {
+                const r = await fetch(path, {
+                    cache: 'no-store',
+                    signal: ctrl.signal,
+                });
+                const j = await r.json();
+                return { ok: true, data: j };
+            } catch (e) {
+                return { ok: false, error: e };
+            } finally {
+                clearTimeout(t);
+            }
         }
 
         async function refreshLiveData() {
             const cards = document.querySelectorAll('.card[data-node-ip]');
-            for (const card of cards) {
+            const tasks = [...cards].map(async (card) => {
                 const ip = card.getAttribute('data-node-ip');
+                const nid = card.getAttribute('data-node-id');
                 const liveEl = card.querySelector('.node-live');
-                if (!liveEl) continue;
-                const online =
-                    card.getAttribute('data-node-online') === '1';
+                if (!liveEl || !ip) return;
+                const online = card.getAttribute('data-node-online') === '1';
                 if (!online) {
                     liveEl.innerHTML =
                         '<p class="live-offline">' +
                         (C.live_offline || '') +
                         '</p>';
-                    continue;
+                    delete lastNodePayload[ip];
+                    return;
                 }
-                try {
-                    const r = await fetch(
-                        '/api/proxy/' +
-                            encodeURIComponent(ip) +
-                            '/api/data',
-                        { cache: 'no-store' }
-                    );
-                    const j = await r.json();
-                    if (j.error) throw new Error(j.error);
-                    liveEl.innerHTML = '';
-                    liveEl.appendChild(buildLiveContent(j));
-                } catch (e) {
+                const res = await fetchNodeData(ip);
+                if (!res.ok || res.data.error) {
                     liveEl.innerHTML =
                         '<p class="live-error">' +
                         (C.live_error || '') +
                         '</p>';
+                    delete lastNodePayload[ip];
+                    return;
                 }
-            }
+                const j = res.data;
+                lastNodePayload[ip] = j;
+                liveEl.innerHTML = '';
+                const gridCard =
+                    window.__nodeCardMap && nid && window.__nodeCardMap[nid];
+                const stub = gridCard || { ip, node_id: nid };
+                stub.ip = ip;
+                stub.node_id = nid;
+                stub.node_label =
+                    card.querySelector('.label-input')?.value?.trim() ||
+                    stub.node_label;
+                stub.hostname = gridCard?.hostname;
+                stub.remote_name = gridCard?.remote_name;
+                liveEl.appendChild(buildCompactLive(stub, j));
+            });
+            await Promise.all(tasks);
+            updateAllCentralChartsFromPayloads();
         }
 
         async function loadNodes() {
@@ -255,7 +556,7 @@
                 await fetch('/api/recording/start_all', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name })
+                    body: JSON.stringify({ name }),
                 });
                 isRecording = true;
                 btn.textContent = stopLab;
@@ -270,17 +571,64 @@
             }
         }
 
-        async function saveLabel(ip, label) {
-            await fetch('/api/nodes/' + encodeURIComponent(ip) + '/label', {
+        function shortNodeId(nid) {
+            if (!nid || String(nid).startsWith('legacy-')) return '';
+            const s = String(nid);
+            return s.length > 12 ? s.slice(0, 8) + '…' : s;
+        }
+
+        function cardDisplayTitle(node) {
+            return node.node_label || node.remote_name || node.hostname || node.ip;
+        }
+
+        async function saveLabel(nodeId, label) {
+            await fetch('/api/nodes/' + encodeURIComponent(nodeId) + '/label', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ label })
+                body: JSON.stringify({ label }),
             });
             loadNodes();
         }
 
+        async function removeNode(nodeId) {
+            if (!confirm(C.grid_remove_confirm || '')) return;
+            await fetch('/api/nodes/' + encodeURIComponent(nodeId), { method: 'DELETE' });
+            loadNodes();
+        }
+
+        async function addNodeByIp() {
+            const inp = document.getElementById('add-node-ip');
+            const msg = document.getElementById('add-node-msg');
+            msg.textContent = '';
+            const ip = (inp.value || '').trim();
+            if (!ip) return;
+            try {
+                const r = await fetch('/api/nodes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip }),
+                });
+                const j = await r.json();
+                if (!r.ok || !j.ok) {
+                    msg.textContent = j.error === 'unreachable' ? (C.live_error || '') : (j.error || '');
+                    return;
+                }
+                inp.value = '';
+                loadNodes();
+            } catch (e) {
+                msg.textContent = C.live_error || '';
+            }
+        }
+
         function renderGrid(nodes) {
             clearLivePoll();
+            destroyAllCentralCharts();
+            lastNodePayload = {};
+            window.__nodeCardMap = {};
+            nodes.forEach((n) => {
+                window.__nodeCardMap[n.node_id] = n;
+            });
+
             const grid = document.getElementById('grid');
             grid.innerHTML = '';
             grid.classList.toggle('grid-multi', nodes.length > 1);
@@ -290,19 +638,26 @@
             const ph = C.grid_display_placeholder || '';
             const saveLab = C.grid_save || '';
             const fullUi = C.grid_full_ui || '';
+            const rmLab = C.grid_remove_btn || 'Remove';
+            const fromDev = C.grid_from_node || '';
+            const idLab = C.grid_node_id_short || 'ID';
             nodes.forEach((node) => {
-                const title = node.node_label || node.hostname || node.ip;
+                const title = cardDisplayTitle(node);
                 const online = node.status === 'online';
+                const sid = shortNodeId(node.node_id);
                 const card = document.createElement('div');
                 card.className = 'card';
+                card.setAttribute('data-node-id', node.node_id);
                 card.setAttribute('data-node-ip', node.ip);
                 card.setAttribute('data-node-online', online ? '1' : '0');
                 card.innerHTML = `
                     <div class="card-head">
                         <h3 class="card-title"></h3>
-                        <span class="pill pill-${node.status || 'offline'}"></span>
+                        <span class="card-head-actions"><button type="button" class="btn btn-ghost btn-sm btn-remove-node"></button><span class="pill pill-${node.status || 'offline'}"></span></span>
                     </div>
                     <p class="meta">${ipPrefix}${node.ip}</p>
+                    <p class="meta subtle node-remote-line"></p>
+                    <p class="meta subtle node-id-line"></p>
                     <p class="meta subtle">${lastSeen} <span class="seen"></span></p>
                     <div class="node-live"><p class="muted live-loading-msg">${liveMsg}</p></div>
                     <div class="card-actions">
@@ -311,21 +666,41 @@
                         <a class="btn btn-primary btn-sm" href="http://${node.ip}:25500/" target="_blank" rel="noopener">${fullUi}</a>
                     </div>`;
                 card.querySelector('.card-title').textContent = title;
+                const rl = card.querySelector('.node-remote-line');
+                if (node.remote_name && node.remote_name !== title) {
+                    rl.textContent = fromDev + ': ' + node.remote_name;
+                } else {
+                    rl.style.display = 'none';
+                }
+                const il = card.querySelector('.node-id-line');
+                if (sid) {
+                    il.textContent = idLab + ': ' + sid;
+                } else {
+                    il.style.display = 'none';
+                }
                 card.querySelector('.seen').textContent = fmtSeen(node.last_seen);
                 const inp = card.querySelector('.label-input');
                 inp.value = node.node_label || '';
                 card.querySelector('.save-label').onclick = () =>
-                    saveLabel(node.ip, inp.value.trim());
+                    saveLabel(node.node_id, inp.value.trim());
+                const rmBtn = card.querySelector('.btn-remove-node');
+                rmBtn.textContent = rmLab;
+                rmBtn.onclick = () => removeNode(node.node_id);
                 grid.appendChild(card);
             });
             refreshLiveData();
             if (nodes.length > 0) {
                 livePollId = setInterval(refreshLiveData, 2000);
             }
+            updateArenaVisibility();
         }
 
         document.getElementById('btn-scan').onclick = discoverNodes;
         document.getElementById('btn-record').onclick = toggleRecording;
+        document.getElementById('btn-add-node').onclick = addNodeByIp;
+        document.getElementById('add-node-ip').addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') addNodeByIp();
+        });
         loadNodes();
         setInterval(loadNodes, 35000);
 
@@ -361,6 +736,7 @@
             }
         }
         checkAppUpdate();
+        updateArenaVisibility();
     </script>
 </body>
 </html>

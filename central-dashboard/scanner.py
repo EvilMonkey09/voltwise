@@ -24,16 +24,18 @@ def check_ip(ip, results):
         if resp.status_code != 200:
             return
         label = None
+        node_id = ""
         try:
             info = requests.get(f"http://{ip}:{PORT}/api/node/info", timeout=0.35)
             if info.status_code == 200:
                 j = info.json()
                 label = (j.get("display_name") or j.get("node_name") or "").strip()
+                node_id = (j.get("node_id") or "").strip()
         except Exception:
             pass
         if not label:
             label = f"Node {str(ip).split('.')[-1]}"
-        results.append({"ip": str(ip), "hostname": label})
+        results.append({"ip": str(ip), "hostname": label, "node_id": node_id})
     except Exception:
         pass
 

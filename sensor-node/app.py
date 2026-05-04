@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+import shutil
 from pathlib import Path
 
 import i18n
@@ -18,6 +19,8 @@ from modbus_handler import PZEMHandler
 _UPDATE_CACHE = Path(__file__).resolve().parent / ".update_check_cache.json"
 _OTA_SCRIPT = "/usr/local/sbin/voltwise-apply-update.sh"
 _OTA_DIR_FILE = "/etc/voltwise/sensor_node_dir"
+_SUDO_BIN = shutil.which("sudo") or "/usr/bin/sudo"
+_SYSTEM_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 app = Flask(__name__)
 
@@ -65,6 +68,10 @@ latest_data = {}
 current_event_id = None
 db = DatabaseHandler()
 pzem = PZEMHandler(config.SERIAL_PORT, config.SENSOR_ADDRESSES)
+
+# Stable UUID for VoltWise Central (persisted in node_settings.json)
+node_settings.stable_node_id()
+
 
 def calculate_neutral(i1, i2, i3):
     """
@@ -157,6 +164,7 @@ def api_node_info():
     s = node_settings.load()
     return jsonify(
         {
+            "node_id": node_settings.stable_node_id(),
             "node_name": s.get("node_name") or "",
             "display_name": node_settings.display_name(),
             "hostname": socket.gethostname(),
@@ -430,11 +438,15 @@ def api_update_apply():
             }
         ), 503
     try:
+        env = os.environ.copy()
+        current_path = env.get("PATH", "")
+        env["PATH"] = f"{current_path}:{_SYSTEM_PATH}" if current_path else _SYSTEM_PATH
         r = subprocess.run(
-            ["sudo", "-n", _OTA_SCRIPT, "latest"],
+            [_SUDO_BIN, "-n", _OTA_SCRIPT, "latest"],
             capture_output=True,
             text=True,
             timeout=900,
+            env=env,
         )
         return jsonify(
             {
@@ -447,7 +459,13 @@ def api_update_apply():
     except subprocess.TimeoutExpired:
         return jsonify({"ok": False, "error": "Update timed out"}), 500
     except FileNotFoundError:
-        return jsonify({"ok": False, "error": "sudo not available"}), 500
+        return jsonify(
+            {
+                "ok": False,
+                "error": "sudo not available in service PATH",
+                "sudo_bin": _SUDO_BIN,
+            }
+        ), 500
 
 
 if __name__ == '__main__':

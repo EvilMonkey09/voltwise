@@ -31,7 +31,7 @@ docker run --rm --privileged \
   -e "VOLTWISE_PI_USER=${VOLTWISE_PI_USER:-}" \
   -e "VOLTWISE_PI_PASSWORD=${VOLTWISE_PI_PASSWORD:-}" \
   -e "VOLTWISE_PI_PASSWORD_HASH=${VOLTWISE_PI_PASSWORD_HASH:-}" \
-  -e "VOLTWISE_PI_ENABLE_SSH=${VOLTWISE_PI_ENABLE_SSH:-1}" \
+  -e "VOLTWISE_PI_ENABLE_SSH=${VOLTWISE_PI_ENABLE_SSH:-0}" \
   -v "$ROOT:/src:ro" \
   -v "$ROOT/dist:/out" \
   -v "$CACHE_VOL:/cache" \

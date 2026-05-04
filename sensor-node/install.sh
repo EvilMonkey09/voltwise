@@ -12,6 +12,18 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Optional CLI flags — use these with sudo: sudo strips env vars like VOLTWISE_SIMULATION=1
+# unless you run: sudo env VOLTWISE_SIMULATION=1 NONINTERACTIVE=1 ./install.sh
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --noninteractive|-n) NONINTERACTIVE=1 ;;
+    --simulation) VOLTWISE_SIMULATION=1 ;;
+    --serial=*) SERIAL_PORT="${1#--serial=}" ;;
+    --sensors=*) SENSOR_ADDRESSES="${1#--sensors=}" ;;
+  esac
+  shift
+done
+
 # Effective user for systemd (avoid root when using sudo ./install.sh)
 # OEM SD image first-boot may run as root with VOLTWISE_INSTALL_AS=username (UID 1000).
 if [[ "$(id -u)" -eq 0 ]] && [[ -n "${VOLTWISE_INSTALL_AS:-}" ]]; then
@@ -41,6 +53,8 @@ NONINTERACTIVE="${NONINTERACTIVE:-0}"
 echo -e "${YELLOW}Installing system dependencies...${NC}"
 sudo apt-get update
 sudo apt-get install -y python3-venv python3-pip libopenblas-dev network-manager
+
+sudo mkdir -p /etc/NetworkManager/dnsmasq-shared.d
 
 echo -e "${YELLOW}Adding ${INSTALL_USER} to dialout and netdev...${NC}"
 sudo usermod -a -G dialout "$INSTALL_USER"
@@ -140,7 +154,7 @@ After=network.target
 User=${INSTALL_USER}
 Group=${INSTALL_GROUP}
 WorkingDirectory=${SCRIPT_DIR}
-Environment="PATH=${SCRIPT_DIR}/venv/bin"
+Environment="PATH=${SCRIPT_DIR}/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ${VOLTWISE_SIM_EXPORT}
 ExecStart=${SCRIPT_DIR}/venv/bin/python3 app.py
 Restart=always
